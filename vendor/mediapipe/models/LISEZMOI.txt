@@ -1,16 +1,14 @@
-LES 2 MODÈLES OFFICIELS DE GOOGLE (déjà en place)
+LE MODÈLE OFFICIEL DE GOOGLE POUR LE CORPS (déjà en place)
 
-1) pose_landmarker_lite.task   (5,5 Mo) — OBLIGATOIRE : détection du corps
+pose_landmarker_lite.task   (5,5 Mo) — OBLIGATOIRE : détection du corps
    Source : https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
    SHA-256 : 59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a
 
-2) efficientdet_lite0.tflite   (6,9 Mo) — FACULTATIF : suivi du ballon
-   Source : https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite
-   SHA-256 : 4b59100025bea1235a84c1038879a6cccc9f6c49f5e41144e91e74d99e780993
-   Sans ce fichier, le jeu marche en « mode simple » (le ballon n’est pas suivi).
-   Sur un téléphone trop lent, le jeu arrête lui-même le suivi du ballon pour rester fluide.
+La balle n’a plus besoin de modèle : depuis la version 1.1, le jeu la suit par le mouvement
+(n’importe quelle balle, n’importe quelle couleur). L’ancien modèle efficientdet_lite0.tflite
+n’est plus utilisé.
 
-Les noms doivent rester EXACTEMENT ceux-ci (minuscules, sans « (1) »).
-Modèles © Google, licence Apache 2.0 (voir ../LICENCE-APACHE-2.0.txt).
+Le nom doit rester EXACTEMENT celui-ci (minuscules, sans « (1) »).
+Modèle © Google, licence Apache 2.0 (voir ../LICENCE-APACHE-2.0.txt).
 
 Vérification : ouvrir le jeu en ligne → ⚙️ Réglages → 🩺 Vérifier l’installation.

@@ -613,6 +613,7 @@ button{cursor:pointer}
       <p><b>En bref : rien ne sort de ton appareil.</b></p>
       <h3>📷 La caméra</h3>
       <p>L’image est analysée en direct, dans le navigateur, image par image, puis oubliée. Elle n’est jamais enregistrée, jamais envoyée sur Internet, jamais montrée à quelqu’un d’autre.</p>
+      <p>Pour repérer la balle, le jeu compare chaque image à une version floue et réduite du sol autour de l’enfant (quelques milliers de points), gardée en mémoire pendant la séance puis effacée : elle n’est jamais enregistrée ni envoyée.</p>
       <h3>💾 Ce qui peut être gardé sur cet appareil</h3>
       <ul>
         <li>Le prénom, la main forte et le niveau — <b>seulement</b> si la case « Retenir mon prénom » est cochée.</li>
@@ -763,7 +764,7 @@ button{cursor:pointer}
   'use strict';
 
   /* ---------- Identité & clés de stockage ---------- */
-  var APP = Object.freeze({ id: 'dribblebeat', version: '1.0.0', stockage: 'v1' });
+  var APP = Object.freeze({ id: 'dribblebeat', version: '1.1.0', stockage: 'v1' });
   var PREFIX = APP.id + '_' + APP.stockage + '_';
 
   /* ---------- Bus d’événements entre blocs ---------- */
@@ -1341,11 +1342,12 @@ button{cursor:pointer}
     "modelePose": "vendor/mediapipe/models/pose_landmarker_lite.task",
     "modeleBallon": "vendor/mediapipe/models/efficientdet_lite0.tflite"
   },
-  "camera": { "largeur": 640, "hauteur": 480, "ips": 30 },
+  "camera": { "largeur": 1280, "hauteur": 960, "ips": 30, "_note": "Image fine (l’enfant est loin). Sur téléphone lent, la détection du corps travaille sur une copie réduite (hauteurReduite).", "hauteurReduite": 640, "reduireSousIps": 14 },
   "pose": { "confianceDetection": 0.5, "confiancePresence": 0.5, "confianceSuivi": 0.5, "msMaxGPU": 90 },
-  "ballon": { "actif": true, "categories": ["sports ball"], "scoreMin": 0.2, "uneImageSur": 2, "uneImageSurMax": 5, "tailleMin": 0.025, "tailleMax": 0.4, "couperSousIps": 10, "couperApresFenetres": 3 },
-  "placement": { "visibiliteMin": 0.55, "visibiliteJambesMin": 0.75, "proportionJambesMin": 0.45, "imagesPourValider": 6, "imagesPourPerdre": 18, "ballonMemoireMs": 2500, "ballonAttenteMs": 10000, "hauteurCorpsMin": 0.4, "centreTolerance": 0.2, "lumiereMin": 40 },
-  "calibrage": { "dureeMs": 1500, "mouvementMax": 0.03, "angleGenouDeboutMin": 150, "brasLevesMs": 700 },
+  "ballon": { "_note": "Ancien détecteur de ballon par IA (modèle efficientdet). Désactivé : la balle est suivie par le mouvement (suiviBalle).", "actif": false, "categories": ["sports ball"], "scoreMin": 0.2, "uneImageSur": 2, "uneImageSurMax": 5, "tailleMin": 0.025, "tailleMax": 0.4, "couperSousIps": 10, "couperApresFenetres": 3 },
+  "suiviBalle": { "_note": "Suivi de N’IMPORTE QUELLE balle par le mouvement, dans la zone entre la taille et le sol. Diamètres en fraction de la hauteur du corps.", "actif": true, "hauteurAnalyse": 160, "largeurAnalyseMax": 240, "seuilMin": 30, "apprentissageFond": 0.06, "apprentissagePremierPlan": 0.008, "diametreMin": 0.03, "diametreMax": 0.28, "candidatsMax": 3 },
+  "placement": { "_note": "hauteurCorpsMinPx : taille minimale du corps (nez → chevilles) en pixels de la caméra ; hauteurCorpsMax : au-delà (fraction de l’image), l’enfant est trop près.", "visibiliteMin": 0.5, "visibiliteJambesMin": 0.6, "proportionJambesMin": 0.45, "imagesPourValider": 5, "imagesPourPerdre": 20, "ballonMemoireMs": 2500, "ballonAttenteMs": 10000, "hauteurCorpsMin": 0.13, "hauteurCorpsMinPx": 190, "hauteurCorpsMax": 0.92, "centreTolerance": 0.3, "lumiereMin": 40 },
+  "calibrage": { "dureeMs": 1500, "mouvementMax": 0.06, "angleGenouDeboutMin": 150, "brasLevesMs": 700 },
   "delais": { "imageCameraMs": 12000, "moteurMs": 90000, "telechargementSilenceMs": 25000, "silenceImagesMs": 2500 },
   "affichage": { "squelette": true },
 
@@ -1355,8 +1357,7 @@ button{cursor:pointer}
     { "id": "wasm",        "chemin": "vendor/mediapipe/wasm/vision_wasm_internal.wasm",       "type": "wasm",   "minOctets": 5000000 },
     { "id": "wasmJsLent",  "chemin": "vendor/mediapipe/wasm/vision_wasm_nosimd_internal.js",  "type": "js",     "minOctets": 100000 },
     { "id": "wasmLent",    "chemin": "vendor/mediapipe/wasm/vision_wasm_nosimd_internal.wasm","type": "wasm",   "minOctets": 5000000 },
-    { "id": "modelePose",  "chemin": "vendor/mediapipe/models/pose_landmarker_lite.task",     "type": "task",   "minOctets": 1000000 },
-    { "id": "modeleBallon","chemin": "vendor/mediapipe/models/efficientdet_lite0.tflite",     "type": "tflite", "minOctets": 1000000, "facultatif": true }
+    { "id": "modelePose",  "chemin": "vendor/mediapipe/models/pose_landmarker_lite.task",     "type": "task",   "minOctets": 1000000 }
   ],
 
   "messages": {
@@ -1382,17 +1383,19 @@ button{cursor:pointer}
   },
 
   "conseils": {
-    "personne": "Je ne te vois pas, {prenom} : mets-toi face au téléphone, à 3 grands pas.",
+    "personne": "Je ne te vois pas, {prenom} : mets-toi face au téléphone, à 2 ou 3 grands pas.",
     "sombre": "Il fait trop sombre : allume la lumière 💡",
     "tete": "Recule un peu, {prenom} : je ne vois pas ta tête.",
     "pieds": "Recule un peu, {prenom} : je ne vois pas tes pieds 👟",
     "contraste": "Je vois mal tes jambes, {prenom} : plus de lumière, ou un fond plus clair derrière toi 💡",
-    "approche": "Approche-toi d’un pas, {prenom} 👣",
+    "approche": "Tu es trop loin, {prenom} : approche-toi d’un pas 👣",
+    "pres": "Tu es trop près, {prenom} : recule d’un pas 👣",
     "gauche": "Décale-toi un peu ⬅️",
     "droite": "Décale-toi un peu ➡️",
     "droit": "Tiens-toi bien droit, {prenom} 🧍",
     "immobile": "Ne bouge plus… je prends tes mesures 📏 {p} %",
     "ballon": "Montre-moi ton ballon, {prenom} 🏀",
+    "balleVue": "Je vois ta balle ! Lève les deux bras 🙌 pour commencer.",
     "sansBallon": "Je ne vois pas bien ton ballon : on jouera sans le suivre.",
     "pret": "Parfait, {prenom} ! Lève les deux bras 🙌 pour commencer."
   }
@@ -1468,11 +1471,12 @@ button{cursor:pointer}
      ===================================================================== */
   var DEFAUT = {
     chemins: { moteur: 'vendor/mediapipe/vision_bundle.js', wasm: 'vendor/mediapipe/wasm', modelePose: 'vendor/mediapipe/models/pose_landmarker_lite.task', modeleBallon: 'vendor/mediapipe/models/efficientdet_lite0.tflite' },
-    camera: { largeur: 640, hauteur: 480, ips: 30 },
+    camera: { largeur: 1280, hauteur: 960, ips: 30, hauteurReduite: 640, reduireSousIps: 14 },
     pose: { confianceDetection: 0.5, confiancePresence: 0.5, confianceSuivi: 0.5, msMaxGPU: 90 },
-    ballon: { actif: true, categories: ['sports ball'], scoreMin: 0.2, uneImageSur: 2, uneImageSurMax: 5, tailleMin: 0.025, tailleMax: 0.4, couperSousIps: 10, couperApresFenetres: 3 },
-    placement: { visibiliteMin: 0.55, visibiliteJambesMin: 0.75, proportionJambesMin: 0.45, imagesPourValider: 6, imagesPourPerdre: 18, ballonMemoireMs: 2500, ballonAttenteMs: 10000, hauteurCorpsMin: 0.4, centreTolerance: 0.2, lumiereMin: 40 },
-    calibrage: { dureeMs: 1500, mouvementMax: 0.03, angleGenouDeboutMin: 150, brasLevesMs: 700 },
+    ballon: { actif: false, categories: ['sports ball'], scoreMin: 0.2, uneImageSur: 2, uneImageSurMax: 5, tailleMin: 0.025, tailleMax: 0.4, couperSousIps: 10, couperApresFenetres: 3 },
+    suiviBalle: { actif: true, hauteurAnalyse: 160, largeurAnalyseMax: 240, seuilMin: 30, apprentissageFond: 0.06, apprentissagePremierPlan: 0.008, diametreMin: 0.03, diametreMax: 0.28, candidatsMax: 3 },
+    placement: { visibiliteMin: 0.5, visibiliteJambesMin: 0.6, proportionJambesMin: 0.45, imagesPourValider: 5, imagesPourPerdre: 20, ballonMemoireMs: 2500, ballonAttenteMs: 10000, hauteurCorpsMin: 0.13, hauteurCorpsMinPx: 190, hauteurCorpsMax: 0.92, centreTolerance: 0.3, lumiereMin: 40 },
+    calibrage: { dureeMs: 1500, mouvementMax: 0.06, angleGenouDeboutMin: 150, brasLevesMs: 700 },
     delais: { imageCameraMs: 12000, moteurMs: 90000, telechargementSilenceMs: 25000, silenceImagesMs: 2500 },
     affichage: { squelette: true },
     fichiers: [],
@@ -1531,6 +1535,27 @@ button{cursor:pointer}
     '#stage:not(.has-video) ~ .screen--setup .cam-pill{display:none}',
     '#stage.has-video ~ .screen--setup .guide{opacity:.35}',
     '#app.is-calibre .screen--setup .guide{opacity:0}',
+    /* Placement « miroir » : l’image ENTIÈRE de la caméra, entre la consigne (haut) et les pastilles (bas) — rien ne cache le corps */
+    '.placement-haut{display:none;flex-direction:column;align-items:center;gap:5px;padding:0 10px;position:relative;z-index:2}',
+    '#app.is-placement .placement-haut{display:flex}',
+    '#app.is-placement .screen--setup .guide__svg{display:none}',
+    '#app.is-placement .screen--setup .topbar{padding-bottom:0}',
+    '#app.is-placement .screen--setup .topbar__title{font-size:1.4rem;-webkit-text-stroke-width:2px}',
+    '#app.is-placement .setup__hint{width:100%;min-height:0;padding:6px 10px;font-size:1.02rem;line-height:1.2;background:rgba(255,247,194,.96);border-style:solid;box-shadow:3px 3px 0 var(--ink)}',
+    '#app.is-placement #cam-card{margin:0 8px calc(8px + var(--sb));padding:7px 8px 9px;background:rgba(255,255,255,.95);box-shadow:4px 4px 0 var(--ink)}',
+    '#app.is-placement .setup__state--ready{gap:7px}',
+    '#app.is-placement .checklist{grid-template-columns:repeat(4,1fr);gap:5px}',
+    '#app.is-placement .checklist li{flex-direction:column;justify-content:center;gap:2px;padding:3px 2px;font-size:.7rem;text-align:center;border-width:2px;border-radius:12px}',
+    '#app.is-placement .checklist li::before{width:11px;height:11px}',
+    '#app.is-placement .checklist li[data-check="ballon"]{display:none}',
+    '#app.is-placement .checklist li[data-check="calibre"]{grid-column:auto}',
+    '#app.is-placement [data-action="ready"]{min-height:42px;padding:4px 14px;font-size:1rem}',
+    '#app[data-screen="setup"] .stage.has-video .stage__layer{top:var(--zone-haut,0px);bottom:auto;height:calc(100% - var(--zone-haut,0px) - var(--zone-bas,0px));object-fit:contain}',
+    '#app[data-screen="setup"] .stage.has-video::after{background:none}',
+    '.jauge{display:none;align-items:center;gap:6px;font-weight:900;font-size:.72rem;color:#fff;text-shadow:var(--outline)}',
+    '.jauge.is-on{display:flex}',
+    '.jauge__piste{position:relative;width:min(52vw,210px);height:13px;border:2px solid var(--ink);border-radius:999px;background:linear-gradient(90deg,#ff8fb3 0,#ff8fb3 calc(var(--g0,.2)*100%),#7dff5c calc(var(--g0,.2)*100%),#7dff5c calc(var(--g1,.9)*100%),#ff8fb3 calc(var(--g1,.9)*100%))}',
+    '.jauge__curseur{position:absolute;top:50%;left:calc(var(--v,.5)*100%);width:20px;height:20px;border-radius:50%;border:2px solid var(--ink);background:radial-gradient(circle at 35% 30%,#ffc07a,var(--orange) 60%,#d9600a);transform:translate(-50%,-50%);transition:left .25s}',
     '.install-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}',
     '.install-list li{display:grid;grid-template-columns:26px 1fr;gap:6px;align-items:start;padding:6px 8px;border:2px solid var(--ink);border-radius:12px;background:#fff;font-size:.86rem;line-height:1.3}',
     '.install-list li>span:last-child{min-width:0;overflow-wrap:anywhere}',
@@ -1569,20 +1594,54 @@ button{cursor:pointer}
   var liBallon = document.querySelector('.checklist [data-check="ballon"]');
   var texteBallon = liBallon ? liBallon.textContent : '';
 
-  // Conseil en direct
+  // Pastilles courtes (l’écran de placement doit laisser voir l’enfant en entier)
+  var COURTS = { tete: '🙂 Tête', genoux: '🦵 Genoux', pieds: '👟 Pieds' };
+  Object.keys(COURTS).forEach(function (k) { var li = document.querySelector('.checklist [data-check="' + k + '"]'); if (li) li.textContent = COURTS[k]; });
+  liCalibre.textContent = '📏 Mesures';
+
+  // En haut de l’écran : consigne en direct, jauge de distance, témoin « caméra active »
+  var ecranSetup = document.querySelector('.screen--setup');
+  var haut = document.createElement('div');
+  haut.className = 'placement-haut';
   var conseilEl = document.createElement('p');
   conseilEl.className = 'setup__hint';
   conseilEl.id = 'setup-hint';
   conseilEl.setAttribute('aria-live', 'polite');
-  if (liste && liste.parentNode) liste.parentNode.insertBefore(conseilEl, liste.nextSibling);
-
-  // Témoin « caméra active »
-  var ecranSetup = document.querySelector('.screen--setup');
+  var jauge = document.createElement('div');
+  jauge.className = 'jauge'; jauge.id = 'jauge-distance'; jauge.setAttribute('aria-hidden', 'true');
+  jauge.innerHTML = '<span>Loin</span><div class="jauge__piste"><div class="jauge__curseur"></div></div><span>Près</span>';
   var pastille = document.createElement('p');
   pastille.className = 'cam-pill';
   pastille.textContent = 'Caméra active · rien n’est enregistré';
+  haut.appendChild(conseilEl); haut.appendChild(jauge); haut.appendChild(pastille);
   var topbar = ecranSetup && ecranSetup.querySelector('.topbar');
-  if (topbar) topbar.parentNode.insertBefore(pastille, topbar.nextSibling);
+  if (topbar) topbar.parentNode.insertBefore(haut, topbar.nextSibling);
+
+  // L’image de la caméra occupe exactement l’espace libre entre le haut et les pastilles
+  function majZone() {
+    if (!app || DB.State.screen !== 'setup' || !app.classList.contains('is-placement')) return;
+    var ra = app.getBoundingClientRect(), rh = haut.getBoundingClientRect(), rc = camCard ? camCard.getBoundingClientRect() : null;
+    if (!ra.height) return;
+    app.style.setProperty('--zone-haut', Math.max(0, Math.round(rh.bottom - ra.top + 6)) + 'px');
+    app.style.setProperty('--zone-bas', Math.max(0, Math.round(rc ? ra.bottom - rc.top + 6 : 0)) + 'px');
+  }
+  function majModePlacement() {
+    var actif = !!(camCard && camCard.dataset.state === 'ready');
+    app.classList.toggle('is-placement', actif);
+    if (actif) requestAnimationFrame(majZone);
+  }
+  if (camCard && typeof MutationObserver === 'function') new MutationObserver(majModePlacement).observe(camCard, { attributes: true, attributeFilter: ['data-state'] });
+  if (typeof ResizeObserver === 'function') { var ro = new ResizeObserver(function () { majZone(); }); ro.observe(haut); if (camCard) ro.observe(camCard); }
+  window.addEventListener('resize', majZone);
+  bus.on('ecran', function (d) { if (d && d.nom === 'setup') { majModePlacement(); setTimeout(majZone, 60); } });
+  function majJauge(fraction, g0, g1) {
+    if (fraction === null) { jauge.classList.remove('is-on'); return; }
+    function v(f) { return Math.max(0, Math.min(1, (f - 0.05) / 0.92)); }
+    jauge.classList.add('is-on');
+    jauge.style.setProperty('--v', v(fraction).toFixed(3));
+    jauge.style.setProperty('--g0', v(g0).toFixed(3));
+    jauge.style.setProperty('--g1', v(g1).toFixed(3));
+  }
 
   // Vérification de l’installation (dans ⚙️ Réglages)
   var feuilleReglages = document.querySelector('#sheet-settings .sheet__panel');
@@ -1900,6 +1959,7 @@ button{cursor:pointer}
   }
   // Zone de l’image réellement visible à l’écran (la vidéo est recadrée en « cover »)
   function zoneVisible(w, h) {
+    if (DB.State.screen === 'setup') return { x0: 0, x1: 1, y0: 0, y1: 1 };   // placement : image entière affichée
     var sw = stage.clientWidth || w, sh = stage.clientHeight || h;
     var s = Math.max(sw / w, sh / h);
     var fx = Math.min(1, sw / (w * s)), fy = Math.min(1, sh / (h * s));
@@ -1966,8 +2026,190 @@ button{cursor:pointer}
         ctx.restore();
       }
     }
+    // Cadre de visée aux 4 coins de l’image (placement) : blanc = cherche, vert = bien placé
+    var etatCadre = null;
+    function coins(w, h) {
+      if (DB.State.screen !== 'setup') return;
+      var m = Math.round(Math.min(w, h) * 0.025), L = Math.round(Math.min(w, h) * 0.13), e = Math.max(4, Math.round(Math.min(w, h) * 0.014));
+      ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      [[e * 2.2, '#231942'], [e, etatCadre ? '#7dff5c' : '#ffffff']].forEach(function (passe) {
+        ctx.lineWidth = passe[0]; ctx.strokeStyle = passe[1];
+        ctx.beginPath();
+        ctx.moveTo(m, m + L); ctx.lineTo(m, m); ctx.lineTo(m + L, m);
+        ctx.moveTo(w - m - L, m); ctx.lineTo(w - m, m); ctx.lineTo(w - m, m + L);
+        ctx.moveTo(m, h - m - L); ctx.lineTo(m, h - m); ctx.lineTo(m + L, h - m);
+        ctx.moveTo(w - m - L, h - m); ctx.lineTo(w - m, h - m); ctx.lineTo(w - m, h - m - L);
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
     function effacer() { if (ctx) ctx.clearRect(0, 0, cv.width, cv.height); dernierBallon = null; }
-    return { image: image, effacer: effacer };
+    return { image: function (img) { image(img); if (ctx && cv.width) coins(cv.width, cv.height); }, effacer: effacer, cadre: function (e) { etatCadre = e; } };
+  })();
+
+  /* =====================================================================
+     6 bis. SUIVI DE LA BALLE PAR LE MOUVEMENT — n’importe quelle balle, n’importe quelle couleur
+        Zone d’analyse : de la taille jusqu’un peu sous les pieds, autour des mains et des pieds.
+        Un « fond » (sol, jambes presque immobiles) est appris en continu et soustrait ; ce qui s’en
+        écarte ET a la forme d’une balle est retenu. Le plus bas est le meilleur candidat (le bloc 3
+        choisit ensuite celui qui suit la trajectoire). Aucune image n’est gardée : seulement un fond
+        flou de quelques milliers de points, en mémoire, effacé à chaque changement de zone.
+     ===================================================================== */
+  var SuiviBalle = (function () {
+    var SB = VC.suiviBalle;
+    var cv = document.createElement('canvas'), cx = null;
+    try { cx = cv.getContext('2d', { willReadFrequently: true }); } catch (e) { cx = null; }
+    var fond = null, roi = null, W = 0, H = 0, bruit = 10, masque = null, etiq = null, pile = null, dernierMs = 0;
+
+    function oublier() { fond = null; roi = null; tailleApprise = 0; }
+    function vu(P, i) { return P[i] && P[i].v >= 0.3; }
+    function zone(P, w, h) {
+      if (!vu(P, 0)) return null;
+      var xs = [], pieds = [], hanches = [];
+      [15, 16, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32].forEach(function (i) { if (vu(P, i)) xs.push(P[i].x * w); });
+      [27, 28, 29, 30, 31, 32].forEach(function (i) { if (vu(P, i)) pieds.push(Math.min(1, P[i].y) * h); });
+      [23, 24].forEach(function (i) { if (vu(P, i)) hanches.push(P[i].y * h); });
+      if (xs.length < 5 || !pieds.length || !hanches.length) return null;
+      var sol = Math.max.apply(null, pieds), taille = Math.min.apply(null, hanches), corps = sol - P[0].y * h;
+      if (corps < 60) return null;
+      var y0 = Math.max(0, taille - 0.05 * corps), y1 = Math.min(h, sol + 0.16 * corps);
+      var x0 = Math.max(0, Math.min.apply(null, xs) - 0.3 * corps), x1 = Math.min(w, Math.max.apply(null, xs) + 0.3 * corps);
+      if (y1 - y0 < 24 || x1 - x0 < 24) return null;
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, corps: corps };
+    }
+    function stable(a, b) {
+      var tol = 0.12 * Math.max(1, a.h);
+      return Math.abs(a.x - b.x) < tol && Math.abs(a.y - b.y) < tol && Math.abs(a.x + a.w - b.x - b.w) < tol && Math.abs(a.y + a.h - b.y - b.h) < tol;
+    }
+    function nouvelleZone(z, w, h) {
+      var mx = 0.04 * z.w, my = 0.04 * z.h;
+      var x0 = Math.max(0, z.x - mx), y0 = Math.max(0, z.y - my), x1 = Math.min(w, z.x + z.w + mx), y1 = Math.min(h, z.y + z.h + my);
+      roi = { x: x0, y: y0, w: x1 - x0, h: y1 - y0, corps: z.corps };
+      var k = Math.min(1, SB.hauteurAnalyse / roi.h, SB.largeurAnalyseMax / roi.w);
+      W = Math.max(8, Math.round(roi.w * k)); H = Math.max(8, Math.round(roi.h * k));
+      cv.width = W; cv.height = H;
+      masque = new Uint8Array(W * H); etiq = new Int32Array(W * H); pile = new Int32Array(W * H);
+      fond = null;
+    }
+    // Dilatation / érosion d’un masque binaire (carré de côté 2r+1) : deux passes séparables à fenêtre glissante
+    // (coût indépendant de r). Hors de l’image : 0 pour dilater, 1 pour éroder.
+    function morpho(src, dst, tmp, r, dilater) {
+      var x, y, c, L = 2 * r + 1, bord = dilater ? 0 : 1;
+      for (y = 0; y < H; y++) {
+        var b = y * W; c = 0;
+        for (x = -r; x <= r; x++) c += x < 0 || x >= W ? bord : src[b + x];
+        for (x = 0; x < W; x++) {
+          tmp[b + x] = dilater ? (c > 0 ? 1 : 0) : (c === L ? 1 : 0);
+          var so = x - r, en = x + r + 1;
+          c += (en >= W ? bord : src[b + en]) - (so < 0 ? bord : src[b + so]);
+        }
+      }
+      for (x = 0; x < W; x++) {
+        c = 0;
+        for (y = -r; y <= r; y++) c += y < 0 || y >= H ? bord : tmp[y * W + x];
+        for (y = 0; y < H; y++) {
+          dst[y * W + x] = dilater ? (c > 0 ? 1 : 0) : (c === L ? 1 : 0);
+          var so2 = y - r, en2 = y + r + 1;
+          c += (en2 >= H ? bord : tmp[en2 * W + x]) - (so2 < 0 ? bord : tmp[so2 * W + x]);
+        }
+      }
+    }
+    var precImg = null, mvt = null, tmpA = null, tmpB = null, tailleApprise = 0;
+    // source : la vidéo (ou une image de test) ; w, h : sa taille ; P : repères du corps (0-1)
+    function detecter(source, w, h, P) {
+      if (!cx || !SB.actif || !P) return null;
+      var debut = performance.now();
+      var z = zone(P, w, h);
+      if (!z) { oublier(); return []; }
+      if (!roi || !stable(roi, z)) { nouvelleZone(z, w, h); precImg = new Uint8ClampedArray(W * H * 3); mvt = new Uint8Array(W * H); tmpA = new Uint8Array(W * H); tmpB = new Uint8Array(W * H); }
+      roi.corps = 0.9 * roi.corps + 0.1 * z.corps;
+      cx.drawImage(source, roi.x, roi.y, roi.w, roi.h, 0, 0, W, H);
+      var d = cx.getImageData(0, 0, W, H).data, n = W * H, i, j, f;
+      if (!fond) {
+        fond = new Float32Array(n * 3);
+        for (i = 0, j = 0; i < n; i++, j += 4) { f = i * 3; fond[f] = precImg[f] = d[j]; fond[f + 1] = precImg[f + 1] = d[j + 1]; fond[f + 2] = precImg[f + 2] = d[j + 2]; }
+        dernierMs = performance.now() - debut;
+        return [];
+      }
+      // 1) « Premier plan » : ce qui s’écarte du fond appris (somme des écarts rouge + vert + bleu :
+      //    une balle de n’importe quelle couleur ressort). 2) « Mouvement » : ce qui a changé depuis l’image
+      //    précédente. On ne garde que le premier plan QUI BOUGE : une jambe immobile, un ballon posé ou la
+      //    trace d’un ballon tenu (fantôme) sont ainsi ignorés.
+      var seuil = Math.max(SB.seuilMin, 3 * bruit + 10), somme = 0, nb = 0, actifs = 0, aF = SB.apprentissageFond, aP = SB.apprentissagePremierPlan;
+      for (i = 0, j = 0; i < n; i++, j += 4) {
+        f = i * 3;
+        var r0 = d[j], g0 = d[j + 1], b0 = d[j + 2];
+        var dr = r0 - fond[f], dg = g0 - fond[f + 1], db = b0 - fond[f + 2];
+        var e = (dr < 0 ? -dr : dr) + (dg < 0 ? -dg : dg) + (db < 0 ? -db : db);
+        var mr = r0 - precImg[f], mg = g0 - precImg[f + 1], mb = b0 - precImg[f + 2];
+        var em = (mr < 0 ? -mr : mr) + (mg < 0 ? -mg : mg) + (mb < 0 ? -mb : mb);
+        if (e < 60) { somme += e; nb++; }
+        var m = e > seuil ? 1 : 0;
+        masque[i] = m; actifs += m;
+        mvt[i] = em > seuil ? 1 : 0;
+        var a = m ? aP : aF;
+        fond[f] += a * dr; fond[f + 1] += a * dg; fond[f + 2] += a * db;
+        precImg[f] = r0; precImg[f + 1] = g0; precImg[f + 2] = b0;
+      }
+      if (nb) bruit = 0.9 * bruit + 0.1 * (somme / nb);
+      if (actifs > 0.45 * n) { fond = null; dernierMs = performance.now() - debut; return []; }   // lumière qui change, téléphone bougé : on réapprend
+      var kx = W / roi.w, ky = H / roi.h, corpsA = roi.corps * ky;
+      // le mouvement « couvre » l’intérieur d’une balle qui avance (seuls ses bords changent d’une image à l’autre)
+      var rd = Math.max(2, Math.round(0.03 * corpsA));
+      morpho(mvt, tmpB, tmpA, rd, true);
+      for (i = 0; i < n; i++) masque[i] = masque[i] && tmpB[i] ? 1 : 0;
+      // ouverture (érosion puis dilatation) : enlève les bords fins qui tremblent (contours des jambes, ombres)
+      morpho(masque, tmpB, tmpA, 1, false);
+      morpho(tmpB, masque, tmpA, 1, true);
+      // Taches (composantes connexes, voisinage à 4)
+      etiq.fill(0);
+      var taches = [], lab = 0;
+      for (i = 0; i < n; i++) {
+        if (!masque[i] || etiq[i]) continue;
+        lab++;
+        var haut = 0, t = { aire: 0, x0: W, x1: 0, y0: H, y1: 0, sx: 0 };
+        pile[haut++] = i; etiq[i] = lab;
+        while (haut) {
+          var q = pile[--haut], x = q % W, y = (q - x) / W;
+          t.aire++; t.sx += x;
+          if (x < t.x0) t.x0 = x; if (x > t.x1) t.x1 = x; if (y < t.y0) t.y0 = y; if (y > t.y1) t.y1 = y;
+          if (x > 0 && masque[q - 1] && !etiq[q - 1]) { etiq[q - 1] = lab; pile[haut++] = q - 1; }
+          if (x < W - 1 && masque[q + 1] && !etiq[q + 1]) { etiq[q + 1] = lab; pile[haut++] = q + 1; }
+          if (y > 0 && masque[q - W] && !etiq[q - W]) { etiq[q - W] = lab; pile[haut++] = q - W; }
+          if (y < H - 1 && masque[q + W] && !etiq[q + W]) { etiq[q + W] = lab; pile[haut++] = q + W; }
+        }
+        if (t.aire >= 4) taches.push(t);
+      }
+      // Repères à éviter : les mains et les pieds bougent aussi, mais ce ne sont pas des balles
+      var evites = [];
+      [15, 16, 17, 18, 19, 20, 27, 28, 29, 30, 31, 32].forEach(function (k) {
+        if (vu(P, k)) evites.push({ x: (P[k].x * w - roi.x) * kx, y: (P[k].y * h - roi.y) * ky });
+      });
+      var rEvite = 0.055 * corpsA;
+      // Forme de balle : largeur plausible (par rapport au corps), pas trop étirée (le flou de bougé l’allonge
+      // verticalement), assez « pleine ». Une jambe (haute et fine) ou un bras qui entre par le haut est écarté.
+      var dMin = Math.max(3, SB.diametreMin * corpsA), dMax = SB.diametreMax * corpsA, cands = [];
+      taches.forEach(function (t) {
+        var bw = t.x1 - t.x0 + 1, bh = t.y1 - t.y0 + 1;
+        if (bw < dMin || bw > dMax || bh < 0.6 * bw || bh > 3.6 * bw) return;
+        var plein = t.aire / (bw * bh);
+        if (plein < 0.35) return;
+        if (t.y0 === 0 && bh > 1.4 * bw) return;
+        var r = bw / 2, cxp = t.sx / t.aire, cyp = t.y1 + 0.5 - r;
+        for (var k = 0; k < evites.length; k++) { var ex = evites[k].x - cxp, ey = evites[k].y - (t.y0 + t.y1) / 2; if (ex * ex + ey * ey < rEvite * rEvite) return; }
+        // une fois la taille de la balle connue, les taches de taille très différente sont moins crédibles
+        var accord = tailleApprise ? Math.max(0, 1 - Math.abs(Math.log(bw / tailleApprise)) / 0.7) : 0.5;
+        cands.push({ x: (roi.x + cxp / kx) / w, y: (roi.y + cyp / ky) / h, rx: r / kx / w, ry: r / ky / h, score: Math.min(0.95, 0.3 + 0.35 * plein + 0.3 * accord), bas: t.y1, bw: bw });
+      });
+      cands.sort(function (a, b) { return b.bas - a.bas; });
+      if (cands[0]) {
+        cands[0].score = Math.min(0.99, cands[0].score + 0.1);
+        tailleApprise = tailleApprise ? 0.92 * tailleApprise + 0.08 * cands[0].bw : cands[0].bw;
+      }
+      dernierMs = performance.now() - debut;
+      return cands.slice(0, SB.candidatsMax).map(function (c) { return { x: c.x, y: c.y, rx: c.rx, ry: c.ry, score: c.score }; });
+    }
+    return { detecter: detecter, oublier: oublier, ms: function () { return dernierMs; }, zone: function () { return roi; } };
   })();
 
   /* =====================================================================
@@ -1984,7 +2226,7 @@ button{cursor:pointer}
 
     function nouvelEtat() { return { ok: false, oui: 0, non: 0 }; }
     function reinitialiser() {
-      etats = { tete: nouvelEtat(), genoux: nouvelEtat(), pieds: nouvelEtat(), ballon: nouvelEtat() };
+      etats = { tete: nouvelEtat(), genoux: nouvelEtat(), pieds: nouvelEtat(), ballon: nouvelEtat(), distance: nouvelEtat() };
       calib = { echantillons: [], debut: 0, progres: 0, mesures: null };
       ballonVuA = -1e9; sansPoseDepuis = performance.now(); gesteDepuis = 0; gesteBloqueJusqua = 0;
       ballonAttenteDepuis = 0; abandonBallon = false; dernierEnvoi = ''; dernierConseil = ''; dernierConseilA = 0;
@@ -2064,13 +2306,25 @@ button{cursor:pointer}
       bus.emit('vision:calibre', { mesures: calib.mesures });
     }
 
+    // Taille du corps (nez → pieds) en pixels de la caméra. Si les pieds sont incertains ou « inventés » trop haut,
+    // on l’estime par le tronc (nez → pieds ≈ 2,9 troncs chez l’enfant).
+    function tailleCorps(P, img) {
+      var tronc = distPx(milieu(P[11], P[12]), milieu(P[23], P[24]), img.w, img.h), estime = 2.9 * tronc;
+      var ys = [27, 28, 29, 30].filter(function (i) { return P[i] && P[i].v >= 0.3 && P[i].y <= 1; }).map(function (i) { return P[i].y; });
+      var px = ys.length ? (Math.max.apply(null, ys) - P[0].y) * img.h : 0;
+      if (px < 0.6 * estime) px = estime;
+      return { px: px, fraction: px / img.h };
+    }
+    function seuilLoinPx(img) { return Math.max(VC.placement.hauteurCorpsMinPx, VC.placement.hauteurCorpsMin * img.h); }
     function choisirConseil(P, img, etapeCalib, brut) {
       if (!P) return performance.now() - sansPoseDepuis > 800 ? 'personne' : dernierConseil;
       if (lumiere < VC.placement.lumiereMin) return 'sombre';
       if (!brut.tete) return 'tete';
+      // La distance d’abord (un enfant trop loin a souvent des pieds « incertains » : il ne faut pas lui dire de reculer)
+      var tc = tailleCorps(P, img);
+      if (tc.px < seuilLoinPx(img)) return 'approche';
+      if (tc.fraction > VC.placement.hauteurCorpsMax) return 'pres';
       if (!brut.pieds || !brut.genoux) return jambesFloues ? 'contraste' : 'pieds';
-      var hauteur = milieu(P[27], P[28]).y - P[0].y;
-      if (hauteur < VC.placement.hauteurCorpsMin) return 'approche';
       var z = zoneVisible(img.w, img.h);
       var xEcran = 1 - milieu(P[23], P[24]).x;               // affichage en miroir
       var xRel = (xEcran - z.x0) / Math.max(0.01, z.x1 - z.x0); // 0 = bord gauche visible, 1 = bord droit
@@ -2078,7 +2332,8 @@ button{cursor:pointer}
       if (xRel > 0.5 + VC.placement.centreTolerance) return 'gauche';
       if (!calib.mesures) return etapeCalib || 'immobile';
       if (!ballonOk()) return 'ballon';
-      return abandonBallon ? 'sansBallon' : 'pret';
+      if (abandonBallon) return 'sansBallon';
+      return performance.now() - ballonVuA < 1500 ? 'balleVue' : 'pret';
     }
 
     var dernierAffichage = '';
@@ -2116,17 +2371,24 @@ button{cursor:pointer}
       var genouxPlausibles = !!P && tronc > 0 && dansImage(P[25]) && dansImage(P[26]) && sousDe(P[25], P[23]) && sousDe(P[26], P[24]);
       var piedsPlausibles = genouxPlausibles && dansImage(P[27]) && dansImage(P[28]) && sousDe(P[27], P[25]) && sousDe(P[28], P[26]);
       jambesFloues = piedsPlausibles && [25, 26, 27, 28].some(function (i) { return P[i].v >= 0.45 && P[i].v < vj; });
+      // Pied : cheville, talon OU pointe du pied suffisamment sûrs (de loin, la cheville seule est souvent incertaine)
+      function pied(a, b, c) { return P[a].v >= vj || (P[b] && P[b].v >= vj) || (P[c] && P[c].v >= vj); }
       var brut = {
         tete: !!P && ok(P[0]) && (ok(P[7]) || ok(P[8])) && P[0].y > 0.02,
         genoux: genouxPlausibles && P[25].v >= vj && P[26].v >= vj,
-        pieds: piedsPlausibles && P[27].v >= vj && P[28].v >= vj
+        pieds: piedsPlausibles && pied(27, 29, 31) && pied(28, 30, 32)
       };
       alimenter(etats.tete, brut.tete);
       alimenter(etats.genoux, brut.genoux);
       alimenter(etats.pieds, brut.pieds);
       alimenter(etats.ballon, maintenant - ballonVuA < VC.placement.ballonMemoireMs);
+      // Bonne distance (ni trop loin, ni trop près), avec la même tolérance aux à-coups que les autres pastilles
+      var tc = P ? tailleCorps(P, img) : null;
+      alimenter(etats.distance, !!tc && tc.px >= seuilLoinPx(img) && tc.fraction <= VC.placement.hauteurCorpsMax);
+      if (DB.State.screen === 'setup') majJauge(tc && brut.tete ? tc.fraction : null, seuilLoinPx(img) / img.h, VC.placement.hauteurCorpsMax);
 
-      var corpsOk = etats.tete.ok && etats.genoux.ok && etats.pieds.ok;
+      var corpsOk = etats.tete.ok && etats.genoux.ok && etats.pieds.ok && etats.distance.ok;
+      Dessin.cadre(corpsOk ? (calib.mesures ? 'pret' : 'ok') : null);
       var etapeCalib = null;
       if (DB.State.screen === 'setup') {
         if (corpsOk && P && !calib.mesures) etapeCalib = avancerCalibrage(img, P);
@@ -2186,7 +2448,7 @@ button{cursor:pointer}
     var mesPose = [], mesBallon = [], imagesFenetre = 0, debutFenetre = 0, imagesDepuisDepart = 0, departA = 0, fenetresLentes = 0;
     var uneImageSur = VC.ballon.uneImageSur;
 
-    function demarrer() { actif = true; enPause = false; derniereImageA = performance.now(); debutFenetre = derniereImageA; departA = derniereImageA; imagesFenetre = 0; imagesDepuisDepart = 0; mesPose = []; planifier(); }
+    function demarrer() { actif = true; enPause = false; derniereImageA = performance.now(); debutFenetre = derniereImageA; departA = derniereImageA; imagesFenetre = 0; imagesDepuisDepart = 0; mesPose = []; Cadrage.oublier(); SuiviBalle.oublier(); planifier(); }
     function arreter() { actif = false; annuler(); Dessin.effacer(); }
     function pause() { enPause = true; annuler(); }
     function reprendre() { if (!actif) return; enPause = false; derniereImageA = performance.now(); planifier(); }
@@ -2228,14 +2490,15 @@ button{cursor:pointer}
       numero++; imagesFenetre++; imagesDepuisDepart++;
       derniereImageA = performance.now();
 
-      var a = performance.now(), res;
-      try { res = Moteur.pose().detectForVideo(video, ts); erreursSuite = 0; }
+      var a = performance.now(), res, entree = Cadrage.entree(w, h);
+      try { res = Moteur.pose().detectForVideo(entree.source, ts); erreursSuite = 0; }
       catch (e) { erreurTache(e); return; }
       var b = performance.now();
       mesPose.push(b - a); if (mesPose.length > 60) mesPose.shift();
 
-      var points = res && res.landmarks && res.landmarks[0] ? copiePoints(res.landmarks[0]) : null;
+      var points = res && res.landmarks && res.landmarks[0] ? Cadrage.versImage(copiePoints(res.landmarks[0]), entree.crop, w, h) : null;
       var monde = points && res.worldLandmarks && res.worldLandmarks[0] ? copiePoints(res.worldLandmarks[0]) : null;
+      Cadrage.apres(points, w, h);
 
       var ballons = null;
       var B = Moteur.ballon();
@@ -2244,6 +2507,13 @@ button{cursor:pointer}
         try { ballons = extraireBallons(B.detectForVideo(video, ts), w, h); }
         catch (e) { console.warn('[Dribble Beat] Erreur du détecteur de ballon.', e); ballons = null; }
         mesBallon.push(performance.now() - c); if (mesBallon.length > 30) mesBallon.shift();
+      } else if (!B && VC.suiviBalle.actif) {
+        // Suivi de la balle par le mouvement (toutes balles) : à chaque image, très léger
+        if (points) {
+          try { ballons = SuiviBalle.detecter(video, w, h, points); }
+          catch (e) { if (!erreurBalle) { erreurBalle = true; console.warn('[Dribble Beat] Suivi de la balle indisponible.', e); } ballons = null; }
+          mesBallon.push(SuiviBalle.ms()); if (mesBallon.length > 30) mesBallon.shift();
+        } else SuiviBalle.oublier();
       }
 
       var img = { t: t, ts: ts, n: numero, w: w, h: h, pose: points ? { points: points, monde: monde } : null, ballons: ballons };
@@ -2253,6 +2523,59 @@ button{cursor:pointer}
       surveillerPerf();
     }
 
+    var reduire = false, fenetresLentesPose = 0, erreurBalle = false;
+    // CADRAGE AUTOMATIQUE (« zoom numérique ») : de loin, l’enfant est petit dans l’image et le détecteur
+    // de MediaPipe ne le trouve plus. On lui donne une découpe centrée sur l’enfant, où il paraît plus grand ;
+    // les repères sont ensuite remis dans les coordonnées de l’image entière (rien ne change pour la suite).
+    // Sans personne en vue, on essaie tour à tour : image entière, zoom ×1,7, zoom ×2,4.
+    var Cadrage = (function () {
+      var crop = null, perdueDepuis = 0, essai = 0, essaiA = 0;
+      var cvC = document.createElement('canvas'), ctxC = null;
+      try { ctxC = cvC.getContext('2d'); } catch (e) { ctxC = null; }
+      var ESSAIS = [null, { zoom: 1.7, cy: 0.55 }, { zoom: 2.4, cy: 0.58 }];
+      function fenetre(w, h, zoom, cxN, cyN) {
+        var cw = w / zoom, ch = h / zoom;
+        return { x: Math.max(0, Math.min(w - cw, cxN * w - cw / 2)), y: Math.max(0, Math.min(h - ch, cyN * h - ch / 2)), w: cw, h: ch, zoom: zoom };
+      }
+      function hauteurMax() { return reduire || Moteur.delegue() === 'CPU' ? VC.camera.hauteurReduite : 100000; }
+      function entree(w, h) {
+        var c = crop, hm = hauteurMax();
+        if (!ctxC || (!c && h <= hm * 1.15)) return { source: video, crop: null };
+        var sx = c ? c.x : 0, sy = c ? c.y : 0, sw = c ? c.w : w, sh = c ? c.h : h;
+        var dh = Math.round(Math.min(sh, hm)), dw = Math.round(sw * dh / sh);
+        if (cvC.width !== dw || cvC.height !== dh) { cvC.width = dw; cvC.height = dh; }
+        ctxC.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
+        return { source: cvC, crop: c ? { x: sx, y: sy, w: sw, h: sh } : null };
+      }
+      function versImage(P, c, w, h) {
+        if (!P || !c) return P;
+        P.forEach(function (p) { p.x = (c.x + p.x * c.w) / w; p.y = (c.y + p.y * c.h) / h; p.z = p.z * c.w / w; });
+        return P;
+      }
+      function apres(P, w, h) {
+        var now = performance.now();
+        if (!P) {
+          if (!perdueDepuis) perdueDepuis = now;
+          if (now - perdueDepuis > 900 && now - essaiA > 700) {
+            essai = (essai + 1) % ESSAIS.length; essaiA = now;
+            var e = ESSAIS[essai]; crop = e ? fenetre(w, h, e.zoom, 0.5, e.cy) : null;
+          }
+          return;
+        }
+        perdueDepuis = 0;
+        var x0 = 1, x1 = 0, y0 = 1, y1 = 0;
+        P.forEach(function (p) { if (p.v < 0.3) return; if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; });
+        if (x1 <= x0 || y1 <= y0) return;
+        var bh = y1 - y0, zoom = Math.min(2.6, 0.62 / Math.max(0.05, bh));
+        if (zoom < 1.3) { crop = null; return; }                       // assez grand : image entière
+        if (crop) {                                                     // on garde la découpe tant que le corps y tient bien
+          var m = 0.07, dedans = x0 * w >= crop.x + m * crop.w && x1 * w <= crop.x + (1 - m) * crop.w && y0 * h >= crop.y + m * crop.h && y1 * h <= crop.y + (1 - m) * crop.h;
+          if (dedans && Math.abs(crop.zoom - zoom) / zoom < 0.3) return;
+        }
+        crop = fenetre(w, h, zoom, (x0 + x1) / 2, (y0 + y1) / 2);
+      }
+      return { entree: entree, versImage: versImage, apres: apres, crop: function () { return crop; }, oublier: function () { crop = null; perdueDepuis = 0; } };
+    })();
     function extraireBallons(r, w, h) {
       var out = [];
       ((r && r.detections) || []).forEach(function (d) {
@@ -2291,6 +2614,10 @@ button{cursor:pointer}
       // Après un court échauffement (≥ 4 images et ≥ 3 s ; la médiane ignore la 1re image, toujours lente),
       // une carte graphique trop lente cède la place au CPU.
       if (Moteur.delegue() === 'GPU' && imagesDepuisDepart >= 4 && p - departA >= 3000 && mPose > VC.pose.msMaxGPU) basculerCPU('lent');
+      if (!reduire && video.videoHeight > VC.camera.hauteurReduite * 1.15) {
+        fenetresLentesPose = ips < VC.camera.reduireSousIps ? fenetresLentesPose + 1 : 0;
+        if (fenetresLentesPose >= 2) { reduire = true; console.info('[Dribble Beat] Téléphone lent : détection sur image réduite.'); }
+      }
       if (Moteur.ballon()) {
         if (ips < 15 && uneImageSur < VC.ballon.uneImageSurMax) uneImageSur++;
         else if (ips >= 24 && uneImageSur > VC.ballon.uneImageSur) uneImageSur--;
@@ -2305,11 +2632,11 @@ button{cursor:pointer}
       bus.emit('vision:perf', info);
       var reg = {}; try { reg = Cam.piste() ? Cam.piste().getSettings() : {}; } catch (e) { reg = {}; }
       info.camera = (reg.width || video.videoWidth) + '×' + (reg.height || video.videoHeight) + (reg.resizeMode ? ' ' + reg.resizeMode : '');
-      if (debugEl) debugEl.textContent = 'cam ' + info.camera + '\nips ' + info.ips + '  pose ' + info.poseMs + ' ms\nballon ' + (Moteur.ballon() ? info.ballonMs + ' ms (1/' + uneImageSur + ')' : 'off') + '\n' + info.delegue + '  lum ' + info.lumiere + '\nhorloge ' + horloge + '\nbloqués ' + Garde.liste().length;
+      if (debugEl) debugEl.textContent = 'cam ' + info.camera + '\nips ' + info.ips + '  pose ' + info.poseMs + ' ms\nballon ' + (Moteur.ballon() ? info.ballonMs + ' ms (1/' + uneImageSur + ')' : (VC.suiviBalle.actif ? 'mouvement ' + info.ballonMs + ' ms' : 'off')) + (reduire || Moteur.delegue() === 'CPU' ? '\nentrée réduite' : '') + (Cadrage.crop() ? '\nzoom ×' + Cadrage.crop().zoom.toFixed(1) : '') + '\n' + info.delegue + '  lum ' + info.lumiere + '\nhorloge ' + horloge + '\nbloqués ' + Garde.liste().length;
     }
 
     return {
-      demarrer: demarrer, arreter: arreter, pause: pause, reprendre: reprendre, relancer: relancer,
+      demarrer: demarrer, arreter: arreter, pause: pause, reprendre: reprendre, relancer: relancer, cadrage: function () { return Cadrage.crop(); },
       actif: function () { return actif; }, enPause: function () { return enPause; },
       derniereImageA: function () { return derniereImageA; }
     };
@@ -2524,7 +2851,7 @@ button{cursor:pointer}
      ===================================================================== */
   try {
     if (new URLSearchParams(location.search).get('test') === '1') {
-      window.__dribbleVision = { Cam: Cam, Moteur: Moteur, Boucle: Boucle, Placement: Placement, Session: Session, Garde: Garde, Dessin: Dessin, VC: VC };
+      window.__dribbleVision = { Cam: Cam, Moteur: Moteur, Boucle: Boucle, Placement: Placement, Session: Session, Garde: Garde, Dessin: Dessin, VC: VC, SuiviBalle: SuiviBalle, Cadrage: function () { return Boucle.cadrage(); } };
     }
   } catch (e) { /* ignoré */ }
 
@@ -2813,8 +3140,11 @@ button{cursor:pointer}
     if (prec && t - prec.t < 0.35) {
       var dmin = 1e9;
       cands.forEach(function (c) { var d = dist(c, prec); if (d < dmin) { dmin = d; choix = c; } });
-      // Un ballon d’enfant ne dépasse guère 5 m/s ≈ 45 rayons/s : au-delà, c’est une fausse détection.
-      if (dmin > prec.r * (2 + 45 * (t - prec.t))) return;
+      // Un ballon d’enfant ne dépasse guère 5 m/s ≈ 45 rayons de ballon de basket/s ≈ 13 troncs/s : au-delà,
+      // c’est une fausse détection. (En troncs aussi : une petite balle parcourt beaucoup de rayons par seconde.)
+      var dt = t - prec.t, saut = prec.r * (2 + 45 * dt);
+      if (f && f.tronc > 0) saut = Math.max(saut, f.tronc * (0.25 + 13 * dt));
+      if (dmin > saut) return;
     }
     if (!choix) choix = cands.sort(function (a, b) { return b.score - a.score; })[0];
     if (S.ballons.length) { S.intervallesBallon.push(t - S.ballons[S.ballons.length - 1].t); if (S.intervallesBallon.length > 20) S.intervallesBallon.shift(); }
