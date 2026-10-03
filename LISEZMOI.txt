@@ -1,0 +1,15 @@
+DÉPOSE ICI LES 2 MODÈLES OFFICIELS DE GOOGLE (à télécharger une seule fois)
+
+1) pose_landmarker_lite.task   (≈ 5,5 Mo) — OBLIGATOIRE : détection du corps
+   https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
+
+2) efficientdet_lite0.tflite   (≈ 4 à 7 Mo) — FACULTATIF : suivi du ballon
+   https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite
+   Sans ce fichier, le jeu marche en « mode simple » (le ballon n’est pas suivi).
+
+Les noms doivent être EXACTEMENT ceux-ci (minuscules, sans « (1) » ajouté par le navigateur).
+Ces adresses sont celles de la documentation officielle du paquet @mediapipe/tasks-vision 1.0.1.
+
+Vérification : ouvre le jeu en ligne → ⚙️ Réglages → 🩺 Vérifier l’installation.
+
+Ce dossier ne doit contenir que ces 2 fichiers (et ce LISEZMOI).
