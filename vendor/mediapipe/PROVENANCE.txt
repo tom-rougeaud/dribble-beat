@@ -13,7 +13,9 @@ a28483cd42e74e855bf5ebdb6b40d9b66a5b49e35e95020bc97669e6822a3192  wasm/vision_wa
 vision_bundle.js = version « IIFE » du paquet (variable globale Vision), chargée par une simple balise <script>.
 Les fichiers *_module_internal.* du paquet ne sont pas nécessaires et ne sont pas fournis.
 
-Modèles (à télécharger, voir models/LISEZMOI.txt) : pose_landmarker_lite.task, efficientdet_lite0.tflite
+Modèles officiels (stockage public de Google, modèles « float16/1 » de la documentation de @mediapipe/tasks-vision), sans modification :
+59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a  models/pose_landmarker_lite.task
+4b59100025bea1235a84c1038879a6cccc9f6c49f5e41144e91e74d99e780993  models/efficientdet_lite0.tflite
 
 Note RGPD : MediaPipe 1.x tente d’envoyer des statistiques d’usage à Google (odml.pa.googleapis.com).
 Dribble Beat bloque ces envois par la politique de sécurité (CSP) de la page ET par une garde réseau en JavaScript.

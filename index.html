@@ -590,6 +590,7 @@ button{cursor:pointer}
         <li>Pose le téléphone debout, à environ 3 grands pas.</li>
         <li>Dribble sur chaque « boum » de la musique.</li>
         <li>Écoute le coach et enchaîne les combos !</li>
+        <li>Besoin d’une pause ? Sors du cadre : le jeu s’arrête tout seul. Pour reprendre, reviens et lève les deux bras.</li>
       </ol>
       <h3>Sécurité</h3>
       <p>Joue dans un endroit dégagé, avec un adulte à proximité. Le téléphone doit être posé hors du chemin du ballon. Ballon conseillé : taille 5 (mini-basket).</p>
@@ -618,7 +619,7 @@ button{cursor:pointer}
         <li>Les meilleurs scores (avec le prénom, seulement si la case est cochée).</li>
         <li>Les réglages (effets réduits, plein écran, son, voix, réglage du décalage son/image).</li>
       </ul>
-      <p>Tout est rangé dans le stockage local de ce navigateur, sur cet appareil uniquement. Les mesures du corps prises au calibrage restent en mémoire le temps de la partie et ne sont jamais enregistrées.</p>
+      <p>Tout est rangé dans le stockage local de ce navigateur, sur cet appareil uniquement. Les mesures du corps prises au calibrage, le retard mesuré pendant l’échauffement et le détail de chaque dribble restent en mémoire le temps de la partie et ne sont jamais enregistrés (seul le meilleur score est gardé, comme indiqué ci-dessus).</p>
       <h3>🗣️ La voix du coach</h3>
       <p>Le coach parle avec une voix <b>installée sur l’appareil</b>. Les voix « en ligne » (qui enverraient la phrase, donc le prénom, à un serveur) sont volontairement exclues. Sans voix française installée, le coach parle seulement par écrit.</p>
       <h3>🚫 Ce qu’il n’y a pas</h3>
@@ -748,7 +749,8 @@ button{cursor:pointer}
     "hauteur": "Garde le ballon sous ta ceinture : il est plus facile à contrôler et à protéger.",
     "genoux":  "Plie un peu les genoux, comme un ressort prêt à sauter.",
     "regard":  "Essaie de regarder devant toi : les vrais joueurs et joueuses regardent le jeu, pas le ballon.",
-    "doigts":  "Pousse le ballon avec le bout des doigts bien écartés, pas avec la paume."
+    "doigts":  "Pousse le ballon avec le bout des doigts bien écartés, pas avec la paume.",
+    "bravo":   "Superbe partie ! Tu peux essayer le niveau au-dessus."
   }
 }
 </script>
@@ -761,7 +763,7 @@ button{cursor:pointer}
   'use strict';
 
   /* ---------- Identité & clés de stockage ---------- */
-  var APP = Object.freeze({ id: 'dribblebeat', version: '1.0.0-bloc4', stockage: 'v1' });
+  var APP = Object.freeze({ id: 'dribblebeat', version: '1.0.0', stockage: 'v1' });
   var PREFIX = APP.id + '_' + APP.stockage + '_';
 
   /* ---------- Bus d’événements entre blocs ---------- */
@@ -1114,18 +1116,21 @@ button{cursor:pointer}
     var wrap = $('#res-crit'), vals = s.criteres || {}, worst = null;
     wrap.textContent = '';
     (CFG.criteres || []).forEach(function (c) {
-      var v = Math.max(0, Math.min(100, Math.round(vals[c.id] || 0)));
-      if (worst === null || v < worst.v) worst = { id: c.id, v: v };
+      var inconnu = vals[c.id] === null || vals[c.id] === undefined;   // critère jamais mesuré pendant la partie
+      var v = inconnu ? 0 : Math.max(0, Math.min(100, Math.round(vals[c.id] || 0)));
+      if (!inconnu && (worst === null || v < worst.v)) worst = { id: c.id, v: v };
       var row = document.createElement('div'); row.className = 'bar';
       var lab = document.createElement('span'); lab.textContent = c.emoji + ' ' + c.label;
       var tr = document.createElement('div'); tr.className = 'bar__track';
       var fl = document.createElement('div'); fl.className = 'bar__fill'; fl.style.setProperty('--v', v);
       tr.appendChild(fl);
-      var num = document.createElement('span'); num.className = 'bar__num'; num.textContent = v + '\u202F%';
+      var num = document.createElement('span'); num.className = 'bar__num'; num.textContent = inconnu ? '—' : v + '\u202F%';
+      if (inconnu) row.title = 'Pas mesuré pendant cette partie';
       row.appendChild(lab); row.appendChild(tr); row.appendChild(num);
       wrap.appendChild(row);
     });
-    $('#res-tip').textContent = worst && CFG.conseilsFin ? '💡 ' + (CFG.conseilsFin[worst.id] || '') : '';
+    var tip = worst && CFG.conseilsFin ? (worst.v >= 90 && CFG.conseilsFin.bravo ? CFG.conseilsFin.bravo : CFG.conseilsFin[worst.id]) : '';
+    $('#res-tip').textContent = tip ? '💡 ' + tip : '';
     showScreen('results');
   }
 
@@ -1338,7 +1343,7 @@ button{cursor:pointer}
   },
   "camera": { "largeur": 640, "hauteur": 480, "ips": 30 },
   "pose": { "confianceDetection": 0.5, "confiancePresence": 0.5, "confianceSuivi": 0.5, "msMaxGPU": 90 },
-  "ballon": { "actif": true, "categories": ["sports ball"], "scoreMin": 0.2, "uneImageSur": 2, "uneImageSurMax": 5, "tailleMin": 0.025, "tailleMax": 0.4 },
+  "ballon": { "actif": true, "categories": ["sports ball"], "scoreMin": 0.2, "uneImageSur": 2, "uneImageSurMax": 5, "tailleMin": 0.025, "tailleMax": 0.4, "couperSousIps": 10, "couperApresFenetres": 3 },
   "placement": { "visibiliteMin": 0.55, "visibiliteJambesMin": 0.75, "proportionJambesMin": 0.45, "imagesPourValider": 6, "imagesPourPerdre": 18, "ballonMemoireMs": 2500, "ballonAttenteMs": 10000, "hauteurCorpsMin": 0.4, "centreTolerance": 0.2, "lumiereMin": 40 },
   "calibrage": { "dureeMs": 1500, "mouvementMax": 0.03, "angleGenouDeboutMin": 150, "brasLevesMs": 700 },
   "delais": { "imageCameraMs": 12000, "moteurMs": 90000, "telechargementSilenceMs": 25000, "silenceImagesMs": 2500 },
@@ -1465,7 +1470,7 @@ button{cursor:pointer}
     chemins: { moteur: 'vendor/mediapipe/vision_bundle.js', wasm: 'vendor/mediapipe/wasm', modelePose: 'vendor/mediapipe/models/pose_landmarker_lite.task', modeleBallon: 'vendor/mediapipe/models/efficientdet_lite0.tflite' },
     camera: { largeur: 640, hauteur: 480, ips: 30 },
     pose: { confianceDetection: 0.5, confiancePresence: 0.5, confianceSuivi: 0.5, msMaxGPU: 90 },
-    ballon: { actif: true, categories: ['sports ball'], scoreMin: 0.2, uneImageSur: 2, uneImageSurMax: 5, tailleMin: 0.025, tailleMax: 0.4 },
+    ballon: { actif: true, categories: ['sports ball'], scoreMin: 0.2, uneImageSur: 2, uneImageSurMax: 5, tailleMin: 0.025, tailleMax: 0.4, couperSousIps: 10, couperApresFenetres: 3 },
     placement: { visibiliteMin: 0.55, visibiliteJambesMin: 0.75, proportionJambesMin: 0.45, imagesPourValider: 6, imagesPourPerdre: 18, ballonMemoireMs: 2500, ballonAttenteMs: 10000, hauteurCorpsMin: 0.4, centreTolerance: 0.2, lumiereMin: 40 },
     calibrage: { dureeMs: 1500, mouvementMax: 0.03, angleGenouDeboutMin: 150, brasLevesMs: 700 },
     delais: { imageCameraMs: 12000, moteurMs: 90000, telechargementSilenceMs: 25000, silenceImagesMs: 2500 },
@@ -1756,7 +1761,12 @@ button{cursor:pointer}
     // Signature des fichiers : une page d’erreur HTML ou un fichier tronqué est refusé ici
     function signatureOk(buf, type) {
       if (!buf || buf.length < 16) return false;
-      if (type === 'task') return buf[0] === 0x50 && buf[1] === 0x4B && buf[2] === 0x03 && buf[3] === 0x04;
+      if (type === 'task') {   // archive zip ; le fichier officiel de Google commence par 2 octets nuls avant « PK »
+        for (var i = 0, lim = Math.min(buf.length - 4, 1024); i <= lim; i++) {
+          if (buf[i] === 0x50 && buf[i + 1] === 0x4B && buf[i + 2] === 0x03 && buf[i + 3] === 0x04) return true;
+        }
+        return false;
+      }
       if (type === 'tflite') return buf[4] === 0x54 && buf[5] === 0x46 && buf[6] === 0x4C && buf[7] === 0x33;
       if (type === 'wasm') return buf[0] === 0x00 && buf[1] === 0x61 && buf[2] === 0x73 && buf[3] === 0x6D;
       if (type === 'js') return buf[0] !== 0x3C; // pas une page HTML (« < »)
@@ -1848,6 +1858,11 @@ button{cursor:pointer}
       return delegue;
     }
 
+    // Téléphone trop lent pour suivre le ballon : on l’arrête (mode simple), la détection du corps redevient fluide
+    function couperBallon() {
+      if (ballon) { try { ballon.close(); } catch (e) { /* ignoré */ } }
+      ballon = null; tampons.ballon = null;
+    }
     function fermer(garderTampons) {
       [pose, ballon].forEach(function (t) { if (t) { try { t.close(); } catch (e) { /* ignoré */ } } });
       pose = null; ballon = null;
@@ -1855,7 +1870,7 @@ button{cursor:pointer}
     }
 
     return {
-      charger: charger, passerCPU: passerCPU, fermer: fermer, signatureOk: signatureOk,
+      charger: charger, passerCPU: passerCPU, fermer: fermer, signatureOk: signatureOk, couperBallon: couperBallon,
       pret: function () { return !!pose; },
       pose: function () { return pose; },
       ballon: function () { return ballon; },
@@ -2168,7 +2183,7 @@ button{cursor:pointer}
     var rvfc = typeof HTMLVideoElement !== 'undefined' && 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
     var dernierTs = 0, numero = 0, dernierTempsVideo = -1, derniereImageA = 0, horloge = null;
     var erreursSuite = 0, bascule = false;
-    var mesPose = [], mesBallon = [], imagesFenetre = 0, debutFenetre = 0, imagesDepuisDepart = 0, departA = 0;
+    var mesPose = [], mesBallon = [], imagesFenetre = 0, debutFenetre = 0, imagesDepuisDepart = 0, departA = 0, fenetresLentes = 0;
     var uneImageSur = VC.ballon.uneImageSur;
 
     function demarrer() { actif = true; enPause = false; derniereImageA = performance.now(); debutFenetre = derniereImageA; departA = derniereImageA; imagesFenetre = 0; imagesDepuisDepart = 0; mesPose = []; planifier(); }
@@ -2279,6 +2294,12 @@ button{cursor:pointer}
       if (Moteur.ballon()) {
         if (ips < 15 && uneImageSur < VC.ballon.uneImageSurMax) uneImageSur++;
         else if (ips >= 24 && uneImageSur > VC.ballon.uneImageSur) uneImageSur--;
+        // déjà au minimum (1 image sur 5) et toujours trop lent : le suivi du ballon coûte plus qu’il n’apporte
+        fenetresLentes = uneImageSur >= VC.ballon.uneImageSurMax && ips < (VC.ballon.couperSousIps || 10) ? fenetresLentes + 1 : 0;
+        if (fenetresLentes >= (VC.ballon.couperApresFenetres || 3)) {
+          fenetresLentes = 0; Moteur.couperBallon(); uneImageSur = VC.ballon.uneImageSur; mesBallon = [];
+          console.info('[Dribble Beat] Téléphone lent : suivi du ballon arrêté (mode simple).');
+        }
       }
       var info = { ips: Math.round(ips), poseMs: Math.round(mPose), ballonMs: Math.round(mBallon), delegue: Moteur.delegue(), uneImageSur: uneImageSur, lumiere: Math.round(Placement.lumiere()), horloge: horloge };
       bus.emit('vision:perf', info);
@@ -3154,8 +3175,10 @@ button{cursor:pointer}
     est programmé à l’avance (planificateur à anticipation de 0,3 s), puis converti dans l’horloge
     des images (performance.now) pour que le bloc 5 compare l’instant du rebond à l’instant où
     l’enfant ENTEND le « boum » (latence de sortie du navigateur + décalage réglé par l’utilisateur).
-  • Musique « pop kawaii » : grosse caisse sur CHAQUE temps (le « boum »), claps sur 2 et 4,
-    charleston, basse, accords et mélodie pentatonique générés. Ou métronome simple.
+  • Musique « générique d’anime » : intro, couplet, pré-refrain, refrain sur la progression reine de
+    la J-pop (IV – V – iii – vi) ; batterie rock, basse, guitare saturée, cordes, cuivres, cloches,
+    coup d’orchestre et mélodie avec écho, tout synthétisé. La grosse caisse frappe sur CHAQUE temps
+    (le « boum » du dribble). Ou métronome simple. Version allégée automatique si le téléphone peine.
   • Voix du coach : synthèse vocale de l’appareil, voix INSTALLÉES SUR L’APPAREIL uniquement
     (les voix « en ligne » enverraient le texte, donc le prénom, à un serveur : elles sont exclues).
 
@@ -3174,17 +3197,8 @@ button{cursor:pointer}
 {
   "_note": "Réglages du son. Les fréquences sont en hertz, les volumes entre 0 et 1.",
   "planificateur": { "anticipation": 0.3, "periodeMs": 25, "margeRetard": 0.02, "retardSon": 0.009 },
-  "mix": { "general": 0.8, "grosseCaisse": 1.0, "clap": 0.35, "charleston": 0.16, "basse": 0.32, "accords": 0.12, "melodie": 0.13, "decompte": 0.6, "effets": 0.35 },
-  "musique": {
-    "accords": [
-      { "nom": "Do",  "basse": 65.41, "notes": [261.63, 329.63, 392.0] },
-      { "nom": "Sol", "basse": 98.0,  "notes": [196.0, 246.94, 293.66] },
-      { "nom": "La m","basse": 110.0, "notes": [220.0, 261.63, 329.63] },
-      { "nom": "Fa",  "basse": 87.31, "notes": [174.61, 220.0, 261.63] }
-    ],
-    "gamme": [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66, 1318.51],
-    "graine": 7
-  },
+  "mix": { "general": 0.8, "grosseCaisse": 1.0, "caisseClaire": 0.4, "charleston": 0.1, "cymbale": 0.14, "basse": 0.26, "guitare": 0.1, "cordes": 0.035, "cuivres": 0.055, "cloches": 0.06, "melodie": 0.07, "orchestre": 0.12, "reverbe": 0.35, "decompte": 0.6, "effets": 0.35 },
+  "musique": { "graine": 11, "transposition": 0, "allegerSousIps": 14 },
   "voix": { "vitesse": 1.05, "hauteur": 1.25, "intervalleMinMs": 2200, "conseilStableMs": 1100, "conseilRepeteMs": 6000 },
   "decalage": { "bpm": 90, "nombre": 12, "ignorerDebut": 2, "fenetreMs": 300, "minTouches": 6, "dispersionMaxMs": 60, "bornesMs": [-150, 400] }
 }
@@ -3213,14 +3227,8 @@ button{cursor:pointer}
   }
   var AC = {
     planificateur: { anticipation: 0.3, periodeMs: 25, margeRetard: 0.02, retardSon: 0.009 },
-    mix: { general: 0.8, grosseCaisse: 1, clap: 0.35, charleston: 0.16, basse: 0.32, accords: 0.12, melodie: 0.13, decompte: 0.6, effets: 0.35 },
-    musique: {
-      accords: [
-        { nom: 'Do', basse: 65.41, notes: [261.63, 329.63, 392] }, { nom: 'Sol', basse: 98, notes: [196, 246.94, 293.66] },
-        { nom: 'La m', basse: 110, notes: [220, 261.63, 329.63] }, { nom: 'Fa', basse: 87.31, notes: [174.61, 220, 261.63] }
-      ],
-      gamme: [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51], graine: 7
-    },
+    mix: { general: 0.8, grosseCaisse: 1, caisseClaire: 0.4, charleston: 0.1, cymbale: 0.14, basse: 0.26, guitare: 0.1, cordes: 0.035, cuivres: 0.055, cloches: 0.06, melodie: 0.07, orchestre: 0.12, reverbe: 0.35, decompte: 0.6, effets: 0.35 },
+    musique: { graine: 11, transposition: 0, allegerSousIps: 14 },
     voix: { vitesse: 1.05, hauteur: 1.25, intervalleMinMs: 2200, conseilStableMs: 1100, conseilRepeteMs: 6000 },
     decalage: { bpm: 90, nombre: 12, ignorerDebut: 2, fenetreMs: 300, minTouches: 6, dispersionMaxMs: 60, bornesMs: [-150, 400] }
   };
@@ -3257,9 +3265,13 @@ button{cursor:pointer}
   }
   function graphe(c, volume) {
     var comp = c.createDynamicsCompressor();
-    comp.threshold.value = -10; comp.knee.value = 8; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.15;
+    comp.threshold.value = -12; comp.knee.value = 8; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15;
     var g = c.createGain(); g.gain.value = volume;
-    g.connect(comp); comp.connect(c.destination);
+    // écrêteur doux final : aucune saturation numérique possible, même sur un pic imprévu
+    var ec = c.createWaveShaper(), n = 2048, cu = new Float32Array(n);
+    for (var i = 0; i < n; i++) { var x = i * 2 / n - 1; cu[i] = Math.abs(x) < 0.7 ? x : Math.sign(x) * (0.7 + 0.29 * Math.tanh((Math.abs(x) - 0.7) / 0.29)); }
+    ec.curve = cu;
+    g.connect(comp); comp.connect(ec); ec.connect(c.destination);
     return { entree: g, comp: comp };
   }
   function creer() {
@@ -3272,6 +3284,8 @@ button{cursor:pointer}
     var gr = graphe(ctx, AC.mix.general * R.volume);
     sortie = gr.entree; compresseur = gr.comp;
     bruit = creerBruit(ctx);
+    // Son débloqué après coup (premier toucher) : on relance proprement le morceau, la grille repart à zéro
+    try { ctx.addEventListener('statechange', function () { if (ctx.state === 'running' && Seq.etat === 'joue' && Seq.bloque) { Seq.bloque = false; demarrer(Seq.derniersParams); } }); } catch (e) { /* ignoré */ }
     return ctx;
   }
   function deverrouiller() {
@@ -3299,137 +3313,324 @@ button{cursor:pointer}
   function entendu(tCtx) { return ctxVersPerf(tCtx + AC.planificateur.retardSon) + decalageMs; }
 
   /* =====================================================================
-     3. INSTRUMENTS (fonctions pures : contexte, destination, instant, réglages)
+     3. INSTRUMENTS (synthétisés ; chaque fonction reçoit le « studio » S)
      ===================================================================== */
+  function midi(m) { return 440 * Math.pow(2, (m - 69) / 12); }
   function env(g, t, v, attaque, duree) {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, v), t + attaque);
     g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
   }
-  function osc(c, type, f, t, fin) { var o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); o.start(t); o.stop(fin); return o; }
-  function sourceBruit(c, b, t, fin) { var s = c.createBufferSource(); s.buffer = b; s.loop = true; s.start(t, Math.random() * 0.5); s.stop(fin); return s; }
+  function envTenue(g, t, v, attaque, tenue, relache) {      // note tenue (cordes, lead)
+    v = Math.max(0.0002, v);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(v, t + attaque);
+    g.gain.setValueAtTime(v, t + attaque + Math.max(0, tenue));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + attaque + Math.max(0, tenue) + relache);
+  }
+  function osc(c, type, f, t, fin, desaccord) {
+    var o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t);
+    if (desaccord) o.detune.setValueAtTime(desaccord, t);
+    o.start(t); o.stop(fin); return o;
+  }
+  function sourceBruit(c, b, t, fin) { var s = c.createBufferSource(); s.buffer = b; s.loop = true; s.start(t, (t * 7.31) % 0.5); s.stop(fin); return s; }
+  function stereo(c, x) { if (c.createStereoPanner) { var p = c.createStereoPanner(); p.pan.value = x; return p; } return c.createGain(); }
+  function filtre(c, type, f, q) { var b = c.createBiquadFilter(); b.type = type; b.frequency.value = f; if (q) b.Q.value = q; return b; }
+  function courbeDisto(k) { var n = 1024, cu = new Float32Array(n); for (var i = 0; i < n; i++) { var x = i * 2 / n - 1; cu[i] = Math.tanh(k * x) / Math.tanh(k); } return cu; }
+
+  // Le « studio » : un bus partagé par famille d’instruments (un seul filtre par famille, pas un par note :
+  // c’est ce qui garde le calcul léger sur téléphone), effet de pompe sur chaque boum, guitare saturée,
+  // réverbération légère (deux lignes à retard croisées) et écho calé sur le tempo.
+  function creerStudio(c, dest, b) {
+    var S = { c: c, b: b, noeuds: [] };
+    function garder(n) { S.noeuds.push(n); return n; }
+    function bus(entree, chaine, sortieVers, rev, echo) {     // entree → chaîne de filtres → sortie (+ départs)
+      var g = garder(c.createGain()), prec = g;
+      (chaine || []).forEach(function (n) { garder(n); prec.connect(n); prec = n; });
+      prec.connect(sortieVers);
+      if (rev) { var r = garder(c.createGain()); r.gain.value = rev; prec.connect(r); r.connect(S.rev); }
+      if (echo) { var e = garder(c.createGain()); e.gain.value = echo; prec.connect(e); e.connect(S.echo); }
+      return g;
+    }
+    S.batterie = garder(c.createGain()); S.batterie.connect(dest);
+    S.musique = garder(c.createGain()); S.musique.connect(dest);
+    // réverbération
+    S.rev = garder(c.createGain());
+    var dL = garder(c.createDelay(1)), dR = garder(c.createDelay(1));
+    var fL = garder(filtre(c, 'lowpass', 2600)), fR = garder(filtre(c, 'lowpass', 2600));
+    var gL = garder(c.createGain()), gR = garder(c.createGain());
+    var pL = garder(stereo(c, -0.7)), pR = garder(stereo(c, 0.7)), sRev = garder(c.createGain());
+    dL.delayTime.value = 0.079; dR.delayTime.value = 0.113; gL.gain.value = 0.42; gR.gain.value = 0.42; sRev.gain.value = AC.mix.reverbe;
+    S.rev.connect(dL); S.rev.connect(dR);
+    dL.connect(fL); fL.connect(gL); gL.connect(dR);
+    dR.connect(fR); fR.connect(gR); gR.connect(dL);
+    dL.connect(pL); dR.connect(pR); pL.connect(sRev); pR.connect(sRev); sRev.connect(dest);
+    // écho de la mélodie (3/4 de temps)
+    S.echo = garder(c.createDelay(2)); var eF = garder(filtre(c, 'lowpass', 3000)), eG = garder(c.createGain()), eS = garder(c.createGain());
+    S.echo.delayTime.value = 0.5; eG.gain.value = 0.32; eS.gain.value = 0.22;
+    S.echo.connect(eF); eF.connect(eG); eG.connect(S.echo); eF.connect(eS); eS.connect(dest);
+    // bus des instruments
+    S.bCharleston = bus(null, [filtre(c, 'highpass', 7500), stereo(c, 0.3)], S.batterie);
+    S.bCaisse = bus(null, [filtre(c, 'bandpass', 1900, 0.7), filtre(c, 'highpass', 700)], S.batterie, 0.25);
+    S.bBasse = bus(null, [filtre(c, 'lowpass', 850, 1.5)], S.musique);
+    var ws = c.createWaveShaper(); ws.curve = courbeDisto(4.5); try { ws.oversample = '2x'; } catch (e) { /* ignoré */ }
+    var gs = c.createGain(); gs.gain.value = 0.45;
+    S.guitare = bus(null, [ws, filtre(c, 'highpass', 90), filtre(c, 'lowpass', 3600), gs], S.musique, 0.15);
+    S.bCordesG = bus(null, [filtre(c, 'lowpass', 2300), stereo(c, -0.55)], S.musique, 0.6);
+    S.bCordesD = bus(null, [filtre(c, 'lowpass', 2300), stereo(c, 0.55)], S.musique, 0.6);
+    S.filtreCuivres = filtre(c, 'lowpass', 1300, 1.2);
+    S.bCuivres = bus(null, [S.filtreCuivres], S.musique, 0.35);
+    S.bClocheG = bus(null, [stereo(c, -0.5)], S.musique, 0.5);
+    S.bClocheD = bus(null, [stereo(c, 0.5)], S.musique, 0.5);
+    S.bLead = bus(null, [filtre(c, 'lowpass', 4400, 0.8)], S.musique, 0.3, 0.28);
+    S.bOrchestre = bus(null, [filtre(c, 'lowpass', 5000)], S.musique, 0.6);
+    // timbre de cloche : 1 seul oscillateur (harmoniques 1, 2, 3) au lieu de 3
+    S.ondeCloche = c.createPeriodicWave(new Float32Array([0, 0, 0, 0]), new Float32Array([0, 1, 0.35, 0.12]));
+    S.bpmEcho = 0;
+    S.fermer = function () { S.noeuds.forEach(function (n) { try { n.disconnect(); } catch (e) { /* ignoré */ } }); };
+    return S;
+  }
 
   var I = {
     grosseCaisse: function (c, d, b, t, v) {        // le « BOUM » : sinus qui plonge 150 → 45 Hz + petit clic d’attaque
       var o = osc(c, 'sine', 150, t, t + 0.42), g = c.createGain();
       o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
       env(g, t, v, 0.003, 0.4); o.connect(g); g.connect(d);
-      var n = sourceBruit(c, b, t, t + 0.03), f = c.createBiquadFilter(), gn = c.createGain();
-      f.type = 'highpass'; f.frequency.value = 2500; env(gn, t, v * 0.35, 0.001, 0.02);
+      var n = sourceBruit(c, b, t, t + 0.03), f = filtre(c, 'highpass', 2500), gn = c.createGain();
+      env(gn, t, v * 0.35, 0.001, 0.02);
       n.connect(f); f.connect(gn); gn.connect(d);
     },
-    clap: function (c, d, b, t, v) {
-      var n = sourceBruit(c, b, t, t + 0.25), f = c.createBiquadFilter(), g = c.createGain();
-      f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 0.9;
-      g.gain.setValueAtTime(0.0001, t);
-      [0, 0.012, 0.024].forEach(function (dt) { g.gain.exponentialRampToValueAtTime(v, t + dt + 0.002); g.gain.exponentialRampToValueAtTime(v * 0.2, t + dt + 0.01); });
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
-      n.connect(f); f.connect(g); g.connect(d);
+    caisseClaire: function (S, t, v) {
+      var c = S.c, o = osc(c, 'triangle', 200, t, t + 0.15), g = c.createGain();
+      o.frequency.exponentialRampToValueAtTime(140, t + 0.1); env(g, t, v * 0.7, 0.002, 0.12); o.connect(g); g.connect(S.batterie);
+      var n = sourceBruit(c, S.b, t, t + 0.22), gn = c.createGain(); env(gn, t, v, 0.001, 0.2); n.connect(gn); gn.connect(S.bCaisse);
     },
-    charleston: function (c, d, b, t, v, ouvert) {
-      var duree = ouvert ? 0.18 : 0.045;
-      var n = sourceBruit(c, b, t, t + duree + 0.01), f = c.createBiquadFilter(), g = c.createGain();
-      f.type = 'highpass'; f.frequency.value = 7000; env(g, t, v, 0.001, duree);
-      n.connect(f); f.connect(g); g.connect(d);
+    charleston: function (S, t, v, ouvert) {
+      var duree = ouvert ? 0.2 : 0.045, n = sourceBruit(S.c, S.b, t, t + duree + 0.01), g = S.c.createGain();
+      env(g, t, v, 0.001, duree); n.connect(g); g.connect(S.bCharleston);
     },
-    basse: function (c, d, b, t, v, f0, duree) {
-      var o = osc(c, 'triangle', f0, t, t + duree + 0.02), o2 = osc(c, 'square', f0, t, t + duree + 0.02);
-      var m = c.createGain(); m.gain.value = 0.25;
-      var lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
-      var g = c.createGain(); env(g, t, v, 0.008, duree);
-      o.connect(lp); o2.connect(m); m.connect(lp); lp.connect(g); g.connect(d);
+    cymbale: function (c, d, b, t, v) {
+      var n = sourceBruit(c, b, t, t + 1.6), f = filtre(c, 'highpass', 4500), g = c.createGain();
+      env(g, t, v, 0.002, 1.5); n.connect(f); f.connect(g); g.connect(d);
     },
-    accord: function (c, d, b, t, v, notes, duree) {
-      notes.forEach(function (f0) {
-        var o = osc(c, 'square', f0, t, t + duree + 0.02), lp = c.createBiquadFilter(), g = c.createGain();
-        lp.type = 'lowpass'; lp.frequency.setValueAtTime(3200, t); lp.frequency.exponentialRampToValueAtTime(900, t + duree);
-        env(g, t, v / notes.length * 1.6, 0.004, duree);
-        o.connect(lp); lp.connect(g); g.connect(d);
+    tom: function (S, t, f0, v) {
+      var c = S.c, o = osc(c, 'sine', f0, t, t + 0.3), g = c.createGain();
+      o.frequency.exponentialRampToValueAtTime(f0 * 0.65, t + 0.25); env(g, t, v, 0.002, 0.26); o.connect(g); g.connect(S.batterie);
+    },
+    basse: function (S, t, m, duree, v, sansSub) {             // sansSub : note « entre deux temps », sans sous-octave (le boum reste roi)
+      var c = S.c, f0 = midi(m), fin = t + duree + 0.03, g = c.createGain();
+      var o = osc(c, 'sawtooth', f0, t, fin);
+      env(g, t, v, 0.006, duree); o.connect(g); g.connect(S.bBasse);
+      if (!sansSub) { var o2 = osc(c, 'square', f0 / 2, t, fin), m2 = c.createGain(); m2.gain.value = 0.35; o2.connect(m2); m2.connect(g); }
+    },
+    guitare: function (S, t, racine, duree, v, sourdine) {    // accord de puissance (fondamentale + quinte ; la saturation ajoute l’octave)
+      var c = S.c, g = c.createGain();
+      env(g, t, v, 0.004, duree); g.connect(S.guitare);
+      [[racine, -7], [racine, 7], [racine + 7, 0]].forEach(function (x, i) {
+        if (sourdine && i === 1) return;
+        osc(c, 'sawtooth', midi(x[0]), t, t + duree + 0.05, x[1]).connect(g);
       });
     },
-    note: function (c, d, b, t, v, f0, duree) {      // mélodie « chiptune » avec léger vibrato
+    cordes: function (S, t, notes, duree, v) {                 // nappe : 2 voix légèrement désaccordées, gauche / droite
+      var c = S.c, gG = c.createGain(), gD = c.createGain();
+      envTenue(gG, t, v, 0.14, duree - 0.14, 0.38); envTenue(gD, t, v, 0.14, duree - 0.14, 0.38);
+      gG.connect(S.bCordesG); gD.connect(S.bCordesD);
+      notes.forEach(function (m) {
+        osc(c, 'sawtooth', midi(m), t, t + duree + 0.5, -9).connect(gG);
+        osc(c, 'sawtooth', midi(m), t, t + duree + 0.5, 9).connect(gD);
+      });
+    },
+    cuivres: function (S, t, notes, v) {                       // « stab » de cuivres (filtre partagé qui s’ouvre)
+      var c = S.c, g = c.createGain(), f = S.filtreCuivres.frequency;
+      f.setValueAtTime(500, t); f.exponentialRampToValueAtTime(3800, t + 0.035); f.exponentialRampToValueAtTime(1300, t + 0.3);
+      env(g, t, v, 0.008, 0.34); g.connect(S.bCuivres);
+      notes.forEach(function (m) { osc(c, 'sawtooth', midi(m), t, t + 0.4, -6).connect(g); osc(c, 'sawtooth', midi(m), t, t + 0.4, 6).connect(g); });
+    },
+    cloche: function (S, t, m, v, pan) {                       // cloche « kirakira » (1 oscillateur)
+      var c = S.c, o = c.createOscillator(), g = c.createGain();
+      o.setPeriodicWave(S.ondeCloche); o.frequency.setValueAtTime(midi(m), t); o.start(t); o.stop(t + 0.55);
+      env(g, t, v, 0.002, 0.5); o.connect(g); g.connect((pan || 0) < 0 ? S.bClocheG : S.bClocheD);
+    },
+    lead: function (S, t, m, duree, v) {                       // mélodie : 2 dents de scie désaccordées, vibrato sur les notes longues
+      var c = S.c, f0 = midi(m), fin = t + duree + 0.2, g = c.createGain();
+      var o1 = osc(c, 'sawtooth', f0, t, fin, -8), o2 = osc(c, 'sawtooth', f0, t, fin, 8);
+      if (duree > 0.35) {
+        var vib = osc(c, 'sine', 5.6, t, fin), vg = c.createGain();
+        vg.gain.setValueAtTime(0, t); vg.gain.setValueAtTime(0, t + 0.18); vg.gain.linearRampToValueAtTime(f0 * 0.005, t + 0.4);
+        vib.connect(vg); vg.connect(o1.frequency); vg.connect(o2.frequency);
+      }
+      envTenue(g, t, v, 0.012, duree * 0.85, 0.16); o1.connect(g); o2.connect(g); g.connect(S.bLead);
+    },
+    coupOrchestre: function (S, t, notes, v) {                 // « JAN ! » (coup d’orchestre)
+      var c = S.c, g = c.createGain(); env(g, t, v, 0.003, 0.55); g.connect(S.bOrchestre);
+      notes.forEach(function (m) { osc(c, 'sawtooth', midi(m), t, t + 0.6).connect(g); osc(c, 'square', midi(m + 12), t, t + 0.6).connect(g); });
+      var n = sourceBruit(c, S.b, t, t + 0.15), gn = c.createGain(); env(gn, t, v * 0.8, 0.001, 0.12); n.connect(gn); gn.connect(S.bCaisse);
+      var bo = osc(c, 'sine', 55, t, t + 0.5), bg = c.createGain(); env(bg, t, v * 1.2, 0.003, 0.45); bo.connect(bg); bg.connect(S.batterie);
+    },
+    // Sons simples (décompte, métronome, effets)
+    note: function (c, d, b, t, v, f0, duree) {
       var o = osc(c, 'square', f0, t, t + duree + 0.03), lfo = osc(c, 'sine', 6, t, t + duree + 0.03), lg = c.createGain();
       lg.gain.value = f0 * 0.006; lfo.connect(lg); lg.connect(o.frequency);
-      var lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200;
-      var g = c.createGain(); env(g, t, v, 0.005, duree);
+      var lp = filtre(c, 'lowpass', 4200), g = c.createGain(); env(g, t, v, 0.005, duree);
       o.connect(lp); lp.connect(g); g.connect(d);
     },
-    tok: function (c, d, b, t, v, f0) {             // bloc de bois (décompte, métronome)
+    tok: function (c, d, b, t, v, f0) {
       var o = osc(c, 'triangle', f0, t, t + 0.09), g = c.createGain();
       o.frequency.exponentialRampToValueAtTime(f0 * 0.7, t + 0.08);
       env(g, t, v, 0.001, 0.08); o.connect(g); g.connect(d);
-    },
-    cymbale: function (c, d, b, t, v) {
-      var n = sourceBruit(c, b, t, t + 1.3), f = c.createBiquadFilter(), g = c.createGain();
-      f.type = 'highpass'; f.frequency.value = 4500; env(g, t, v, 0.002, 1.25);
-      n.connect(f); f.connect(g); g.connect(d);
     }
   };
 
   /* =====================================================================
-     4. COMPOSITION : ce qui est joué sur chaque temps
+     4. COMPOSITION « GÉNÉRIQUE D’ANIME »
+        Intro (2 mesures) puis cycle : couplet A (4) → pré-refrain B (4) → refrain « sabi » (8).
+        Refrain sur la progression reine de la J-pop (IV – V – iii – vi), en ré majeur.
+        La grosse caisse reste sur CHAQUE temps : c’est le « boum » du dribble.
      ===================================================================== */
-  function hasard(graine) { var a = graine >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-  var RYTHMES = [   // 16 doubles-croches par mesure : durée en doubles-croches (0 = silence)
-    [2, 0, 2, 0, 4, 0, 0, 0, 2, 0, 2, 0, 2, 0, 2, 0],
-    [4, 0, 0, 0, 2, 0, 2, 0, 4, 0, 0, 0, 2, 0, 0, 0],
-    [2, 0, 2, 0, 2, 0, 2, 0, 6, 0, 0, 0, 0, 0, 2, 0],
-    [3, 0, 0, 1, 2, 0, 2, 0, 3, 0, 0, 1, 4, 0, 0, 0]
-  ];
+  var RACINES = { 'D': 50, 'E': 52, 'F#': 54, 'G': 55, 'A': 57, 'B': 59 };
+  var QUALITES = { maj: [0, 4, 7], min: [0, 3, 7], maj7: [0, 4, 7, 11], dom7: [0, 4, 7, 10], m7: [0, 3, 7, 10], sus4: [0, 5, 7] };
+  function A(r, q) { return { r: RACINES[r] + (AC.musique.transposition || 0), q: QUALITES[q] }; }
+  var GRILLES = {            // un accord par demi-mesure (2 temps)
+    intro: [A('G', 'maj7'), A('A', 'dom7'), A('D', 'maj'), A('D', 'maj')],
+    A: [A('B', 'min'), A('G', 'maj'), A('D', 'maj'), A('A', 'maj'), A('B', 'min'), A('G', 'maj'), A('D', 'maj'), A('A', 'maj')],
+    B: [A('G', 'maj'), A('A', 'maj'), A('F#', 'min'), A('B', 'min'), A('G', 'maj'), A('A', 'maj'), A('A', 'sus4'), A('A', 'dom7')],
+    sabi: [A('G', 'maj7'), A('A', 'dom7'), A('F#', 'm7'), A('B', 'm7'), A('G', 'maj7'), A('A', 'dom7'), A('D', 'maj'), A('D', 'maj'),
+           A('G', 'maj7'), A('A', 'dom7'), A('F#', 'm7'), A('B', 'm7'), A('E', 'm7'), A('A', 'dom7'), A('D', 'maj'), A('D', 'maj')]
+  };
+  function section(mesure) {
+    if (mesure < 2) return { nom: 'intro', m: mesure, long: 2 };
+    var k = (mesure - 2) % 16;
+    if (k < 4) return { nom: 'A', m: k, long: 4 };
+    if (k < 8) return { nom: 'B', m: k - 4, long: 4 };
+    return { nom: 'sabi', m: k - 8, long: 8 };
+  }
+  function accordDe(sec, temps) { return GRILLES[sec.nom][sec.m * 2 + (temps >= 2 ? 1 : 0)]; }
+
+  // Mélodie générée (gamme de ré majeur), motifs répétés pour être facile à retenir
+  var GAMME = [0, 2, 4, 5, 7, 9, 11];
+  function notesGamme(bas, haut) { var out = []; for (var m = bas; m <= haut; m++) if (GAMME.indexOf(((m - 50 - (AC.musique.transposition || 0)) % 12 + 12) % 12) >= 0) out.push(m); return out; }
+  var RYTHMES_M = {
+    A: [[4, 0, 0, 0, 2, 0, 2, 0, 4, 0, 0, 0, 0, 0, 2, 0], [2, 0, 2, 0, 2, 0, 2, 0, 6, 0, 0, 0, 0, 0, 0, 0]],
+    B: [[2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 4, 0, 0, 0], [3, 0, 0, 1, 4, 0, 0, 0, 2, 0, 2, 0, 4, 0, 0, 0]],
+    sabi: [[4, 0, 0, 0, 2, 0, 2, 0, 3, 0, 0, 1, 2, 0, 2, 0], [6, 0, 0, 0, 0, 0, 2, 0, 4, 0, 0, 0, 2, 0, 2, 0], [2, 0, 2, 0, 4, 0, 0, 0, 2, 0, 2, 0, 4, 0, 0, 0], [12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0]]
+  };
   var memoMelodie = {};
-  function melodie(mesure) {           // phrase de 8 mesures qui se répète : facile à retenir
-    var cle = mesure % 8;
-    if (memoMelodie[cle]) return memoMelodie[cle];
-    var src = cle >= 4 ? cle - 4 : cle;                    // la 2e moitié reprend la 1re (sauf la fin de phrase)
-    var r = hasard(AC.musique.graine * 101 + src * 7);
-    var rythme = RYTHMES[Math.floor(hasard(AC.musique.graine + src)() * RYTHMES.length)];
-    var acc = AC.musique.accords[mesure % AC.musique.accords.length];
-    var G = AC.musique.gamme, idx = 2 + Math.floor(r() * 3), notes = [];
-    rythme.forEach(function (duree, pas) {
-      if (!duree) return;
-      if (pas % 4 === 0) {          // temps fort : note de l’accord (la plus proche)
-        var meilleure = idx, ecart = 1e9;
-        G.forEach(function (f, i) { acc.notes.forEach(function (fa) { var e = Math.abs(Math.log2(f / (fa * 2))) * 12 % 12; var dd = Math.abs(i - idx) + (e < 0.5 || Math.abs(e - 12) < 0.5 ? 0 : 3); if (dd < ecart) { ecart = dd; meilleure = i; } }); });
-        idx = meilleure;
-      } else idx = Math.max(0, Math.min(G.length - 1, idx + (r() < 0.5 ? -1 : 1) * (r() < 0.75 ? 1 : 2)));
-      notes.push({ pas: pas, duree: duree, f: G[idx] });
+  function melodie(nom) {
+    if (memoMelodie[nom]) return memoMelodie[nom];
+    var r = hasard(AC.musique.graine * 131 + nom.length * 17 + nom.charCodeAt(0));
+    var T = AC.musique.transposition || 0;
+    var plage = nom === 'sabi' ? notesGamme(69 + T, 86 + T) : nom === 'B' ? notesGamme(67 + T, 83 + T) : notesGamme(64 + T, 81 + T);
+    var grille = GRILLES[nom], nbMesures = grille.length / 2, mesures = [];
+    var idx = Math.floor(plage.length * (nom === 'sabi' ? 0.45 : 0.35));
+    for (var ms = 0; ms < nbMesures; ms++) {
+      var Rm = RYTHMES_M[nom], rythme;
+      if (nom === 'sabi') rythme = Rm[[0, 1, 0, 3, 0, 1, 2, 3][ms]];
+      else rythme = Rm[ms % 2];
+      // contour : le refrain monte vers un sommet (mesures 4-5), le pré-refrain monte d’un cran à chaque mesure
+      var cible = nom === 'sabi' ? [0.45, 0.55, 0.5, 0.35, 0.65, 0.8, 0.6, 0.3][ms] : nom === 'B' ? 0.3 + ms * 0.15 : 0.35 + 0.1 * (ms % 2);
+      var notes = [];
+      rythme.forEach(function (duree, pas) {
+        if (!duree) return;
+        var acc = grille[ms * 2 + (pas >= 8 ? 1 : 0)];
+        var classes = acc.q.map(function (x) { return (acc.r + x) % 12; });
+        if (acc.q.length === 4 || r() < 0.25) classes.push((acc.r + 14) % 12);   // la neuvième : couleur « J-pop »
+        var visee = Math.round(cible * (plage.length - 1));
+        if (pas % 8 === 0 || duree >= 4) {        // temps fort ou note longue : note de l’accord, près du contour visé
+          var meilleur = idx, score = 1e9;
+          plage.forEach(function (m, i) { if (classes.indexOf(m % 12) < 0) return; var s = Math.abs(i - idx) * 0.6 + Math.abs(i - visee) * 0.4; if (s < score) { score = s; meilleur = i; } });
+          idx = meilleur;
+        } else {                                  // sinon : petit pas vers le contour
+          var dir = visee > idx ? 1 : visee < idx ? -1 : (r() < 0.5 ? -1 : 1);
+          idx = Math.max(0, Math.min(plage.length - 1, idx + dir * (r() < 0.7 ? 1 : 2)));
+        }
+        notes.push({ pas: pas, duree: duree, m: plage[idx] });
+      });
+      if ((nom === 'sabi' && ms === 7) || (nom === 'A' && ms === 3)) {     // fin de phrase : on se pose sur la tonique
+        var ton = plage.filter(function (m) { return (m - T) % 12 === 2; });
+        var fin = ton.reduce(function (a, b) { return Math.abs(b - plage[idx]) < Math.abs(a - plage[idx]) ? b : a; }, ton[0]);
+        notes = [{ pas: 0, duree: 12, m: fin }];
+      }
+      mesures.push(notes);
+    }
+    // le 2e motif du refrain reprend le 1er (mesures 4-5 = 0-1 une tierce plus haut) : c’est ce qui « accroche »
+    if (nom === 'sabi') [0, 1].forEach(function (k) {
+      mesures[k + 4] = mesures[k].map(function (n) { var i = plage.indexOf(n.m); return { pas: n.pas, duree: n.duree, m: plage[Math.min(plage.length - 1, i + 2)] }; });
     });
-    if (cle === 7) notes = notes.filter(function (n) { return n.pas < 8; }).concat([{ pas: 8, duree: 6, f: G[5] }]);   // fin de phrase : note tenue
-    memoMelodie[cle] = notes;
-    return notes;
+    memoMelodie[nom] = mesures;
+    return mesures;
+  }
+  function hasard(graine) { var a = graine >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+  // Effet de « pompe » : la musique s’efface une fraction de seconde sous chaque boum (le temps ressort)
+  function pompe(S, t, spb) {
+    var g = S.musique.gain;
+    g.setValueAtTime(1, t); g.linearRampToValueAtTime(0.55, t + 0.012); g.linearRampToValueAtTime(1, t + Math.min(0.22, spb * 0.45));
   }
 
-  // Programme les sons d’UN temps (n ≥ 0) à l’instant t (secondes du contexte c)
-  function jouerTemps(c, d, b, n, t, spb, style, mode) {
-    var M = AC.mix, q = spb / 4, mesure = Math.floor(n / 4), temps = n % 4;
-    I.grosseCaisse(c, d, b, t, M.grosseCaisse);
-    if (style === 'metronome') {
-      I.tok(c, d, b, t, M.decompte * 0.7, temps === 0 ? 1600 : 1100);
-      return;
-    }
-    if (n === 0) I.cymbale(c, d, b, t, 0.18);
-    if (temps === 1 || temps === 3) I.clap(c, d, b, t, M.clap);
-    var acc = AC.musique.accords[mesure % AC.musique.accords.length];
+  // Programme les sons d’UN temps (n ≥ 0) à l’instant t
+  function jouerTemps(S, n, t, spb, style, mode, allege) {
+    var M = AC.mix, c = S.c, q = spb / 4, mesure = Math.floor(n / 4), temps = n % 4;
+    I.grosseCaisse(c, S.batterie, S.b, t, M.grosseCaisse);
+    if (style === 'metronome') { I.tok(c, S.batterie, S.b, t, M.decompte * 0.7, temps === 0 ? 1600 : 1100); return; }
+    pompe(S, t, spb);
+    if (S.bpmEcho !== spb) { S.echo.delayTime.setValueAtTime(Math.min(1.9, spb * 0.75), t); S.bpmEcho = spb; }
+    var sec = section(mesure), acc = accordDe(sec, temps), nom = sec.nom;
+    var accordNotes = acc.q.map(function (x) { return acc.r + x; });
+
+    // --- batterie ---
+    var debutSection = sec.m === 0 && temps === 0;
+    if (debutSection || (nom === 'sabi' && sec.m === 4 && temps === 0)) I.cymbale(c, S.batterie, S.b, t, M.cymbale);
+    if (nom !== 'intro' && (temps === 1 || temps === 3)) I.caisseClaire(S, t, M.caisseClaire);
+    var fill = (nom === 'B' && sec.m === 3 && temps === 3) || (nom === 'intro' && sec.m === 1 && temps >= 2);
     for (var s = 0; s < 4; s++) {
       var ts = t + s * q;
-      if (s === 2) I.charleston(c, d, b, ts, M.charleston, temps === 3 && mesure % 2 === 1);
-      else if (mode && s % 2 === 1) I.charleston(c, d, b, ts, M.charleston * 0.6, false);
-      // fin de phrase (mesure 8) : petit roulement de claps sur le dernier temps, la grosse caisse reste
-      if (mesure % 8 === 7 && temps === 3 && s > 0) I.clap(c, d, b, ts, M.clap * 0.5);
+      if (fill) {
+        if (nom === 'intro') I.caisseClaire(S, ts, M.caisseClaire * (0.3 + 0.12 * ((temps - 2) * 4 + s)));
+        else I.tom(S, ts, [392, 330, 277, 233][s], M.caisseClaire * 0.8);
+        continue;
+      }
+      if (nom === 'sabi' || mode) I.charleston(S, ts, M.charleston * (s % 2 ? 0.55 : 1), false);
+      else if (s === 0 || s === 2) I.charleston(S, ts, M.charleston, nom === 'B' && temps === 3 && s === 2);
     }
-    I.basse(c, d, b, t, M.basse, acc.basse, spb * 0.45);
-    I.basse(c, d, b, t + 2 * q, M.basse * 0.45, acc.basse * 2, spb * 0.3);
-    I.accord(c, d, b, t + 2 * q, M.accords, acc.notes, spb * 0.35);
-    melodie(mesure).forEach(function (nt) {
-      if (Math.floor(nt.pas / 4) !== temps) return;
-      I.note(c, d, b, t + (nt.pas % 4) * q, M.melodie, nt.f, nt.duree * q * 0.9);
-    });
-    if (mode) {                     // mode bonus : arpège scintillant en doubles-croches
-      for (var k = 0; k < 4; k++) I.note(c, d, b, t + k * q, M.melodie * 0.45, acc.notes[k % acc.notes.length] * 4, q * 0.7);
+    if (nom === 'intro' && sec.m === 0 && temps === 0) I.coupOrchestre(S, t, accordNotes.map(function (m) { return m + 12; }), M.orchestre);
+    if (nom === 'sabi' && sec.m === 0 && temps === 0) I.coupOrchestre(S, t, accordNotes.map(function (m) { return m + 12; }), M.orchestre);
+
+    // --- basse : croches qui poussent (octave sur le refrain) ---
+    var rb = acc.r - 12;
+    I.basse(S, t, rb, q * 1.6, M.basse);
+    I.basse(S, t + 2 * q, nom === 'sabi' ? rb + 12 : (nom === 'B' ? rb + 7 : rb), q * 1.3, M.basse * 0.55, true);
+
+    // --- guitare saturée ---
+    if (nom === 'A') { I.guitare(S, t, acc.r, q * 0.7, M.guitare * 0.7, true); if (!allege) I.guitare(S, t + 2 * q, acc.r, q * 0.7, M.guitare * 0.6, true); }
+    else if ((nom === 'B' || nom === 'sabi') && (temps === 0 || temps === 2)) I.guitare(S, t, acc.r, spb * 1.9, M.guitare, false);
+    else if (nom === 'intro' && temps === 0) I.guitare(S, t, acc.r, spb * 3.8, M.guitare * 0.8, false);
+
+    if (!allege) {
+      // --- cordes (nappes) ---
+      if ((nom === 'B' || nom === 'sabi' || nom === 'intro') && (temps === 0 || temps === 2)) {
+        var vC = M.cordes * (nom === 'B' ? 0.6 + 0.1 * sec.m : 1);
+        I.cordes(S, t, accordNotes.map(function (m) { return m + 12; }), spb * 2, vC);
+      }
+      // --- cuivres sur le refrain ---
+      // (le « pa-PAN » à contretemps est un peu plus doux : le boum du temps doit rester le son le plus fort)
+      if (nom === 'sabi' && (temps === 0 || (temps === 1 && sec.m % 2 === 1))) I.cuivres(S, temps === 0 ? t : t + 2 * q, accordNotes.slice(0, 3).map(function (m) { return m + 12; }), M.cuivres * (temps === 0 ? 1 : 0.7));
+      // --- arpège de cloches sur le couplet, scintillements sur le refrain ---
+      if (nom === 'A' || nom === 'intro') for (var k = 0; k < 4; k++) I.cloche(S, t + k * q, accordNotes[k % accordNotes.length] + 24, M.cloches, k % 2 ? 0.4 : -0.4);
+      if (nom === 'sabi') I.cloche(S, t + 2 * q, accordNotes[(temps + 1) % accordNotes.length] + 36, M.cloches * 0.8, temps % 2 ? 0.5 : -0.5);
+      if (mode) for (var j = 0; j < 4; j++) I.cloche(S, t + j * q, accordNotes[j % accordNotes.length] + 36, M.cloches * 0.7, j % 2 ? 0.6 : -0.6);
+    }
+
+    // --- mélodie (lead) ---
+    if (nom !== 'intro') {
+      var vL = M.melodie * (nom === 'sabi' ? 1 : 0.75);
+      (melodie(nom)[sec.m] || []).forEach(function (nt) {
+        if (Math.floor(nt.pas / 4) !== temps) return;
+        I.lead(S, t + (nt.pas % 4) * q, nt.m, nt.duree * q * 0.92, vL);
+      });
     }
   }
-  function jouerDecompte(c, d, b, n, t) {      // n = -4 … -1
-    I.tok(c, d, b, t, AC.mix.decompte, n === -1 ? 1760 : 1320);
+  function jouerDecompte(S, n, t) {      // n = -4 … -1 : baguettes
+    I.tok(S.c, S.batterie, S.b, t, AC.mix.decompte, n === -1 ? 1760 : 1320);
   }
 
   /* =====================================================================
@@ -3437,7 +3638,7 @@ button{cursor:pointer}
      ===================================================================== */
   var Seq = {
     etat: 'arret', n: 0, prochain: 0, bpm: 76, style: 'pop', mode: null,
-    changements: [], minuterie: null, decroches: 0, sortieMusique: null
+    changements: [], minuterie: null, decroches: 0, sortieMusique: null, studio: null, allege: false, derniersParams: null
   };
   function emettreEtat(etat, extra) { bus.emit('audio:etat', Object.assign({ etat: etat }, extra || {})); }
 
@@ -3449,6 +3650,8 @@ button{cursor:pointer}
     arreter(false);
     // Une sortie propre à chaque morceau : un fondu ne coupe que ce morceau
     Seq.sortieMusique = c.createGain(); Seq.sortieMusique.gain.value = 1; Seq.sortieMusique.connect(sortie);
+    Seq.studio = creerStudio(c, Seq.sortieMusique, bruit);
+    Seq.derniersParams = Object.assign({}, o);
     Seq.bpm = Math.max(40, Math.min(200, Number(o.bpm) || 76));
     Seq.style = o.style === 'metronome' || o.style === 'pop' ? o.style : R.style;
     var decompte = o.decompte === 0 ? 0 : Math.max(0, Math.min(8, Number(o.decompte) || 4));
@@ -3460,7 +3663,8 @@ button{cursor:pointer}
     Seq.minuterie = setInterval(tic, AC.planificateur.periodeMs);
     tic();
     // Si le navigateur refuse encore le son (aucun geste depuis l’ouverture), on le signale au jeu
-    setTimeout(function () { if (Seq.etat === 'joue' && ctx.state !== 'running') emettreEtat('bloque'); }, 400);
+    Seq.bloque = false;
+    setTimeout(function () { if (Seq.etat === 'joue' && ctx.state !== 'running') { Seq.bloque = true; emettreEtat('bloque'); } }, 400);
     emettreEtat('joue', { bpm: Seq.bpm, style: Seq.style });
   }
 
@@ -3477,8 +3681,8 @@ button{cursor:pointer}
       appliquerChangements(Seq.n);
       var spb = 60 / Seq.bpm, t = Seq.prochain, n = Seq.n;
       try {
-        if (n < 0) jouerDecompte(ctx, Seq.sortieMusique, bruit, n, t);
-        else jouerTemps(ctx, Seq.sortieMusique, bruit, n, t, spb, Seq.style, Seq.mode);
+        if (n < 0) jouerDecompte(Seq.studio, n, t);
+        else jouerTemps(Seq.studio, n, t, spb, Seq.style, Seq.mode, Seq.allege);
       } catch (e) { console.warn('[Dribble Beat] Son non joué.', e); }
       bus.emit('audio:temps', { n: n, t: entendu(t), tCtx: t, bpm: Seq.bpm, duree: spb * 1000, mesure: n < 0 ? -1 : Math.floor(n / 4), temps: n < 0 ? null : n % 4, decompte: n < 0 ? -n : null });
       Seq.prochain += spb; Seq.n++;
@@ -3500,14 +3704,14 @@ button{cursor:pointer}
     clearInterval(Seq.minuterie); Seq.minuterie = null;
     var etaitEnCours = Seq.etat === 'joue';
     Seq.etat = 'arret';
-    var s = Seq.sortieMusique; Seq.sortieMusique = null;
+    var s = Seq.sortieMusique, st = Seq.studio; Seq.sortieMusique = null; Seq.studio = null;
     if (s && ctx) {
       var t = ctx.currentTime;
       try {
         s.gain.cancelScheduledValues(t); s.gain.setValueAtTime(s.gain.value, t);
         s.gain.linearRampToValueAtTime(0, t + (fondu === false ? 0.03 : 0.25));
       } catch (e) { /* ignoré */ }
-      setTimeout(function () { try { s.disconnect(); } catch (e) { /* ignoré */ } }, 600);
+      setTimeout(function () { try { s.disconnect(); } catch (e) { /* ignoré */ } if (st) st.fermer(); }, 2500);
     }
     if (etaitEnCours) emettreEtat('arret');
   }
@@ -3525,8 +3729,8 @@ button{cursor:pointer}
       case 'combo': [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { I.note(c, d, bruit, t + i * 0.05, v * 0.8, f, 0.09); }); break;
       case 'etoile': [1567.98, 2093, 2637.02].forEach(function (f, i) { I.note(c, d, bruit, t + i * 0.07, v * 0.7, f, 0.14); }); break;
       case 'bonus':
-        var o = osc(c, 'sawtooth', 200, t, t + 0.65), lp = c.createBiquadFilter(), g = c.createGain();
-        o.frequency.exponentialRampToValueAtTime(1600, t + 0.6); lp.type = 'lowpass'; lp.frequency.value = 2500;
+        var o = osc(c, 'sawtooth', 200, t, t + 0.65), lp = filtre(c, 'lowpass', 2500), g = c.createGain();
+        o.frequency.exponentialRampToValueAtTime(1600, t + 0.6);
         env(g, t, v * 0.6, 0.05, 0.62); o.connect(lp); lp.connect(g); g.connect(d);
         I.cymbale(c, d, bruit, t + 0.55, 0.15); break;
     }
@@ -3639,7 +3843,7 @@ button{cursor:pointer}
     bloc.innerHTML =
       '<h3>Son</h3>' +
       '<fieldset class="seg"><legend class="sr-only">Musique</legend><div class="seg__row">' +
-      '<input type="radio" id="son-pop" name="son-style" value="pop"><label for="son-pop">🎵 Pop kawaii</label>' +
+      '<input type="radio" id="son-pop" name="son-style" value="pop"><label for="son-pop">🎌 Générique anime</label>' +
       '<input type="radio" id="son-metro" name="son-style" value="metronome"><label for="son-metro">🥁 Métronome</label>' +
       '</div></fieldset>' +
       '<label class="reglage-ligne" for="son-volume">🔊 Volume <input type="range" id="son-volume" min="0" max="100" step="5"><output id="son-volume-val"></output></label>' +
@@ -3762,6 +3966,13 @@ button{cursor:pointer}
   bus.on('partie:rejouer', deverrouiller);
   bus.on('partie:reprendre', deverrouiller);
   bus.on('audio:demarrer', function (o) { arreterApercu(); demarrer(o); });
+  // Téléphone qui peine (détection lente) : on allège l’orchestration (moins de voix simultanées)
+  var lentes = 0;
+  bus.on('vision:perf', function (p) {
+    if (!p || typeof p.ips !== 'number') return;
+    lentes = p.ips < AC.musique.allegerSousIps ? lentes + 1 : 0;
+    if (lentes >= 2 && !Seq.allege) { Seq.allege = true; console.info('[Dribble Beat] Musique allégée (téléphone lent).'); }
+  });
   bus.on('audio:tempo', changerTempo);
   bus.on('audio:arreter', function (o) { arreter(!(o && o.fondu === false)); });
   bus.on('audio:mode', function (o) { Seq.mode = o && o.nom ? o.nom : null; });
@@ -3793,19 +4004,31 @@ button{cursor:pointer}
       changements.forEach(function (ch) { if (ch.aPartirDe === n) b = ch.bpm; });
       plan.push({ n: n, t: t, spb: 60 / b }); t += 60 / b;
     }
-    var duree = t + 1.5, taux = o.taux || 44100;
+    var duree = t + 2, taux = o.taux || 44100;
     var c = new C(2, Math.ceil(duree * taux), taux);
-    var gr = graphe(c, AC.mix.general * (o.volume == null ? 1 : o.volume)), br = creerBruit(c);
-    plan.forEach(function (p) {
-      if (p.n < 0) jouerDecompte(c, gr.entree, br, p.n, p.t);
-      else jouerTemps(c, gr.entree, br, p.n, p.t, p.spb, o.style || 'pop', o.mode || null);
-    });
+    var gr = graphe(c, AC.mix.general * (o.volume == null ? 1 : o.volume)), br = creerBruit(c), st = creerStudio(c, gr.entree, br);
+    // Comme en direct : on programme les temps au fil du rendu (0,5 s d’avance), pas tout d’un coup.
+    // Le coût mesuré est alors celui du jeu réel (seules les notes en cours existent).
+    var i = 0, pas = 0.25;
+    function programmer(jusqua) {
+      while (i < plan.length && plan[i].t < jusqua) {
+        var p = plan[i++];
+        if (p.n < 0) jouerDecompte(st, p.n, p.t);
+        else jouerTemps(st, p.n, p.t, p.spb, o.style || 'pop', o.mode || null, !!o.allege);
+      }
+    }
+    programmer(0.5);
+    if (c.suspend) {
+      for (var s = pas; s < duree - 0.05; s += pas) (function (ts) {
+        c.suspend(ts).then(function () { programmer(ts + 0.5); c.resume(); });
+      })(s);
+    } else programmer(Infinity);
     return c.startRendering().then(function (buf) { return { buffer: buf, plan: plan }; });
   }
   try {
     if (new URLSearchParams(location.search).get('test') === '1') {
       window.__dribbleAudio = {
-        rendreHorsLigne: rendreHorsLigne, calculerDecalage: calculerDecalage, Voix: Voix, Seq: Seq, AC: AC,
+        rendreHorsLigne: rendreHorsLigne, calculerDecalage: calculerDecalage, Voix: Voix, Seq: Seq, AC: AC, I: I,
         ctx: function () { return ctx; }, decalage: function () { return decalageMs; }, reglages: function () { return R; }
       };
     }
@@ -3814,7 +4037,1380 @@ button{cursor:pointer}
   DB.registerModule('audio');
 })();
 </script>
-<!-- ▼▼▼ BLOC 5 — Game loop (coller ici) ▼▼▼ -->
-<!-- ▼▼▼ BLOC 6 — Effets manga (coller ici) ▼▼▼ -->
+<!-- ▼▼▼ BLOC 5 — Game loop ▼▼▼ -->
+<!--
+  Ce bloc fait tourner la PARTIE :
+   • départ : 3-2-1-GO sur les 4 « tok » du décompte, puis 8 temps d’ÉCHAUFFEMENT (non notés) qui mesurent le
+     retard propre au téléphone (caméra + détection) pour le corriger pendant la partie ;
+   • chaque « boum » attend UN dribble : l’instant de l’impact au sol (bloc 3) est comparé à l’instant où le boum
+     sort du haut-parleur (bloc 4) → PARFAIT / BIEN / RATÉ. Les temps sont jugés dans l’ordre, après coup ;
+   • points = points du jugement × qualité de la posture (critères du bloc 3) × multiplicateur de bonus ;
+   • combo, bonus (TURBO, POINTS x3) tous les 16 dribbles réussis d’affilée, étoiles ;
+   • événements « Change de main ! », « Accélère ! », « Plus bas ! » annoncés une mesure à l’avance ;
+   • coach (bulle + voix) qui choisit le conseil le plus utile d’après les derniers dribbles ;
+   • pause automatique si l’enfant sort du cadre, reprise en levant les deux bras ;
+   • sécurité : son bloqué, son absent (horloge interne silencieuse), musique coupée par le téléphone, caméra perdue ;
+   • fin de partie et écran de résultats.
+
+  Entrées : partie:demarrer|pause|reprendre|stop, audio:temps|etat, dribble:rebond|posture|inactif,
+            vision:image|perf, camera:perdue, ecran
+  Sorties vers le bloc 4 : audio:demarrer|tempo|mode|arreter|effet, coach:dire
+  Sorties pour le bloc 6 (effets manga) :
+   jeu:etat       { etat: 'decompte'|'echauffement'|'jeu'|'pause'|'pause-auto'|'fin'|'arret' }
+   jeu:jugement   { g, t (impact), tTemps (boum), jugement: 'parfait'|'bien'|'rate', ecartMs, main, points, combo, multiplicateur, posture, mauvaiseMain, bas }
+   jeu:combo      { combo }                     à chaque palier (10, 20, 30…)
+   jeu:bonus      { id, actif, debutG, finG }
+   jeu:evenement  { id, phase: 'annonce'|'debut'|'fin', debutG, finG }
+   jeu:etoile     { nb }
+   jeu:fin        { stats }
+-->
+<script type="application/json" id="config-jeu">
+{
+  "_note": "Réglages techniques de la partie (bloc 5). Les points, bonus, événements, étoiles et phrases du coach sont dans « contenu-pedagogique ». Garder guillemets droits, virgules et apostrophe typographique ’.",
+  "decompte": 4,
+  "echauffement": {
+    "_note": "Temps non notés au départ : ils mesurent le retard de la détection sur CE téléphone. Rallongés de 4 temps (2 fois au plus) si l’enfant n’a pas encore dribblé.",
+    "temps": 8, "rallonge": 4, "rallongesMax": 2, "dribblesMin": 4, "fenetreRatio": 0.45, "correctionMaxMs": 80, "dispersionMaxMs": 70
+  },
+  "retardDetection": {
+    "_note": "Retard moyen de l’instant d’impact estimé (mesuré au bloc 3) : ballon suivi ≈ 0 ; poignet seul ≈ 20 ms à 30 images/s, ≈ 50 ms à 15 images/s.",
+    "ballonMs": 0, "poignetMs": 20, "poignetMsParImageEnMoins": 2, "poignetMaxMs": 60
+  },
+  "jugement": {
+    "_note": "fenetreMs (par niveau) = écart maximal pour BIEN ; PARFAIT = fenetreMs × parfaitRatio. La fenêtre ne dépasse jamais fenetreMaxRatio × durée d’un temps.",
+    "fenetreMaxRatio": 0.42, "attenteMs": 550, "posturePoids": 0.5, "postureInconnue": 0.75, "mauvaiseMainFacteur": 0.5, "plusBasFacteur": 1.5
+  },
+  "tempo": { "bpmMax": 125 },
+  "evenements": { "annonceTempsAvant": 4, "apresRepriseTemps": 8 },
+  "combo": { "palier": 10, "encouragerSiPerdu": 8 },
+  "coach": { "tousLesTemps": 8, "fenetre": 8, "seuil": 0.55, "intervalleMinMs": 2500 },
+  "absence": { "apresMs": 2500, "visibiliteMin": 0.5, "brasLevesMs": 700, "pauseMinMs": 1000 },
+  "son": { "premierTempsMs": 1500, "silenceMaxMs": 3000, "relancesMax": 2 },
+  "fin": { "attenteResultatsMs": 2200, "coupureMusique": 0.75 },
+  "textes": {
+    "etape": "ÉCHAUFFEMENT",
+    "echauffement": "Échauffement : dribble sur chaque boum, {prenom} !",
+    "echauffementRallonge": "Je ne vois pas encore tes dribbles, {prenom}. Dribble sur le boum !",
+    "cestParti": "C’EST PARTI !",
+    "cestPartiCoach": "C’est parti, {prenom} ! Chaque boum compte !",
+    "retourMain": "Reprends ta main {main}, {prenom} !",
+    "mauvaiseMain": "Main {main}, {prenom} !",
+    "pauseAutoTitre": "PAUSE",
+    "pauseAuto": "Où es-tu, {prenom} ? Reviens à ta place, face au téléphone.",
+    "pauseAutoGeste": "🙌 Lève les deux bras pour reprendre",
+    "pauseAutoVoix": "Pause ! Reviens à ta place et lève les deux bras, {prenom}.",
+    "reprise": "On reprend, {prenom} ! Écoute le boum…",
+    "sonBloque": "Touche l’écran pour lancer la musique 🔊",
+    "sonIndisponible": "Pas de son sur cet appareil : suis le cercle qui se resserre !",
+    "fin": "FINI !",
+    "finCoach": "Bravo {prenom} ! Regarde ton score !",
+    "cameraPerdue": "La caméra s’est arrêtée : la partie est interrompue."
+  }
+}
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var DB = window.DribbleBeat;
+  if (!DB || !DB.bus || !DB.ui) return;
+  var bus = DB.bus, ui = DB.ui, HUD = ui.HUD, CFG = DB.CFG;
+
+  /* =====================================================================
+     1. CONFIGURATION
+     ===================================================================== */
+  var DEFAUT = {
+    decompte: 4,
+    echauffement: { temps: 8, rallonge: 4, rallongesMax: 2, dribblesMin: 4, fenetreRatio: 0.45, correctionMaxMs: 80, dispersionMaxMs: 70 },
+    retardDetection: { ballonMs: 0, poignetMs: 20, poignetMsParImageEnMoins: 2, poignetMaxMs: 60 },
+    jugement: { fenetreMaxRatio: 0.42, attenteMs: 550, posturePoids: 0.5, postureInconnue: 0.75, mauvaiseMainFacteur: 0.5, plusBasFacteur: 1.5 },
+    tempo: { bpmMax: 125 },
+    evenements: { annonceTempsAvant: 4, apresRepriseTemps: 8 },
+    combo: { palier: 10, encouragerSiPerdu: 8 },
+    coach: { tousLesTemps: 8, fenetre: 8, seuil: 0.55, intervalleMinMs: 2500 },
+    absence: { apresMs: 2500, visibiliteMin: 0.5, brasLevesMs: 700, pauseMinMs: 1000 },
+    son: { premierTempsMs: 1500, silenceMaxMs: 3000, relancesMax: 2 },
+    fin: { attenteResultatsMs: 2200, coupureMusique: 0.75 },
+    textes: {
+      etape: 'ÉCHAUFFEMENT', echauffement: 'Échauffement : dribble sur chaque boum, {prenom} !',
+      echauffementRallonge: 'Je ne vois pas encore tes dribbles, {prenom}. Dribble sur le boum !',
+      cestParti: 'C’EST PARTI !', cestPartiCoach: 'C’est parti, {prenom} ! Chaque boum compte !',
+      retourMain: 'Reprends ta main {main}, {prenom} !', mauvaiseMain: 'Main {main}, {prenom} !',
+      pauseAutoTitre: 'PAUSE', pauseAuto: 'Où es-tu, {prenom} ? Reviens à ta place, face au téléphone.',
+      pauseAutoGeste: '🙌 Lève les deux bras pour reprendre', pauseAutoVoix: 'Pause ! Reviens à ta place et lève les deux bras, {prenom}.',
+      reprise: 'On reprend, {prenom} ! Écoute le boum…', sonBloque: 'Touche l’écran pour lancer la musique 🔊',
+      sonIndisponible: 'Pas de son sur cet appareil : suis le cercle qui se resserre !',
+      fin: 'FINI !', finCoach: 'Bravo {prenom} ! Regarde ton score !', cameraPerdue: 'La caméra s’est arrêtée : la partie est interrompue.'
+    }
+  };
+  function fusion(base, ajout) {
+    if (!ajout || typeof ajout !== 'object' || Array.isArray(ajout)) return base;
+    var out = Object.assign({}, base);
+    Object.keys(ajout).forEach(function (k) {
+      if (k.charAt(0) === '_') return;
+      var b = base[k], a = ajout[k];
+      if (b && typeof b === 'object' && !Array.isArray(b)) out[k] = fusion(b, a);
+      else if (b === undefined || typeof a === typeof b) out[k] = a;
+    });
+    return out;
+  }
+  var JC = DEFAUT;
+  try {
+    var elCfg = document.getElementById('config-jeu');
+    if (elCfg) JC = fusion(DEFAUT, JSON.parse(elCfg.textContent));
+  } catch (e) { console.warn('[Dribble Beat] Bloc « config-jeu » illisible : réglages par défaut.', e); JC = DEFAUT; }
+
+  var JEU = CFG.jeu || {};
+  var POINTS = JEU.points || { parfait: 100, bien: 60, rate: 0 };
+  var RATIO_PARFAIT = typeof JEU.parfaitRatio === 'number' ? JEU.parfaitRatio : 0.4;
+  var SEUIL_BONUS = JEU.comboPourBonus || 16;
+  var BONUS = Array.isArray(JEU.bonus) ? JEU.bonus.filter(function (b) { return b && b.id; }) : [];
+  var EVTS = Array.isArray(CFG.evenements) ? CFG.evenements.filter(function (e) { return e && e.id; }) : [];
+  var ETOILES = Array.isArray(JEU.etoiles) ? JEU.etoiles : [0.35, 0.6, 0.85];
+  var POIDS = (CFG.morphologie && CFG.morphologie.poids) || { rythme: 0.35, hauteur: 0.25, genoux: 0.2, regard: 0.15, doigts: 0.05 };
+  var CRITERES = ['hauteur', 'genoux', 'regard', 'doigts'];
+
+  /* =====================================================================
+     2. OUTILS (horloge et hasard remplaçables pour les tests)
+     ===================================================================== */
+  var Horloge = { now: function () { return performance.now(); } };
+  function maintenant() { return Horloge.now(); }
+  function hasard(graine) { var a = graine >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  var graineTest = null;
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function clamp01(v) { v = Number(v); return isFinite(v) ? clamp(v, 0, 1) : 0; }
+  function mediane(a) { var s = a.slice().sort(function (x, y) { return x - y; }); if (!s.length) return null; var m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+  function moyenne(a) { return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : null; }
+  function autreMain(m) { return m === 'gauche' ? 'droite' : 'gauche'; }
+  function texte(cle, vars) { return DB.fill(JC.textes[cle] || '', Object.assign({ prenom: P ? P.joueur.prenom : '' }, vars || {})); }
+  function okCritere(c) { return c ? !!c.ok : null; }
+
+  /* ---------- Calculs purs (testables) ---------- */
+  // Jugement d’un écart (ms) : PARFAIT dans la petite fenêtre, BIEN dans la grande, sinon RATÉ.
+  function juger(ecartMs, fenetreMs) {
+    if (ecartMs === null || ecartMs === undefined || !isFinite(ecartMs)) return { jugement: 'rate', rythme: 0 };
+    var a = Math.abs(ecartMs), pw = fenetreMs * RATIO_PARFAIT;
+    if (a <= pw) return { jugement: 'parfait', rythme: 1 };
+    if (a <= fenetreMs) return { jugement: 'bien', rythme: 1 - 0.5 * (a - pw) / Math.max(1, fenetreMs - pw) };
+    return { jugement: 'rate', rythme: 0 };
+  }
+  // Retard constant mesuré pendant l’échauffement : médiane robuste, refusée si les dribbles sont trop irréguliers.
+  function calculerCorrection(ecarts) {
+    var E = JC.echauffement;
+    if (!ecarts || ecarts.length < E.dribblesMin) return { ok: false, raison: 'peu', correction: 0, n: ecarts ? ecarts.length : 0 };
+    var med = mediane(ecarts), mad = mediane(ecarts.map(function (x) { return Math.abs(x - med); }));
+    var bons = ecarts.filter(function (x) { return Math.abs(x - med) <= Math.max(40, 3 * 1.4826 * mad); });
+    if (bons.length < E.dribblesMin) return { ok: false, raison: 'irregulier', correction: 0, n: bons.length };
+    var m2 = mediane(bons), disp = 1.4826 * mediane(bons.map(function (x) { return Math.abs(x - m2); }));
+    if (disp > E.dispersionMaxMs) return { ok: false, raison: 'irregulier', correction: 0, n: bons.length, dispersion: Math.round(disp) };
+    return { ok: true, correction: clamp(m2, -E.correctionMaxMs, E.correctionMaxMs), brute: m2, n: bons.length, dispersion: Math.round(disp) };
+  }
+
+  /* =====================================================================
+     3. SON : commandes vers le bloc 4, ou horloge interne silencieuse si le son est impossible
+     ===================================================================== */
+  var Son = { indisponible: false, forceInterne: false, remplacant: null };
+  var Interne = { actif: false, bpm: 76, n: 0, prochain: 0, changements: [], minuterie: null };
+  function interneTic() {
+    if (!Interne.actif) return;
+    var now = maintenant(), garde = 0;
+    while (Interne.actif && Interne.prochain < now + 300 && garde++ < 64) {
+      Interne.changements = Interne.changements.filter(function (ch) {
+        if (ch.aPartirDe != null && ch.aPartirDe > Interne.n) return true;
+        Interne.bpm = ch.bpm; return false;
+      });
+      var spb = 60000 / Interne.bpm, n = Interne.n;
+      // même message que la musique : le jeu et les effets (bloc 6) suivent la grille sans savoir qu’elle est muette
+      bus.emit('audio:temps', { n: n, t: Interne.prochain, tCtx: null, bpm: Interne.bpm, duree: spb, mesure: n < 0 ? -1 : Math.floor(n / 4), temps: n < 0 ? null : n % 4, decompte: n < 0 ? -n : null, interne: true });
+      Interne.prochain += spb; Interne.n++;
+    }
+  }
+  function interneCommande(type, d) {
+    d = d || {};
+    if (type === 'audio:demarrer') {
+      interneArreter();
+      Interne.actif = true; Interne.bpm = clamp(Number(d.bpm) || 76, 40, 200); Interne.n = -(d.decompte | 0);
+      Interne.prochain = maintenant() + 120; Interne.changements = [];
+      Interne.minuterie = setInterval(interneTic, 25);
+      interneTic();
+    } else if (type === 'audio:tempo') {
+      var bpm = Number(d.bpm);
+      if (bpm >= 40 && bpm <= 200) Interne.changements.push({ bpm: bpm, aPartirDe: typeof d.aPartirDe === 'number' ? d.aPartirDe : null });
+    } else if (type === 'audio:arreter') interneArreter();
+  }
+  function interneArreter() { clearInterval(Interne.minuterie); Interne.minuterie = null; Interne.actif = false; }
+  function commandeAudio(type, d) {
+    if (Son.forceInterne || Son.indisponible) { interneCommande(type, d); return; }
+    if (Son.remplacant) { Son.remplacant(type, d); return; }
+    bus.emit(type, d);
+    // Le bloc 4 répond « indisponible » pendant l’envoi (pas de Web Audio) : l’horloge interne prend le relais
+    if (type === 'audio:demarrer' && Son.indisponible) interneCommande(type, d);
+  }
+
+  /* =====================================================================
+     4. INTERFACE AJOUTÉE AU HUD : étiquette d’étape, panneau de pause automatique
+     ===================================================================== */
+  var css = document.createElement('style');
+  css.id = 'style-bloc5';
+  css.textContent = [
+    '.jeu-etape{position:absolute;left:50%;top:calc(25% + var(--st));transform:translateX(-50%) rotate(-3deg);z-index:5;padding:6px 16px;border:3px solid var(--ink);border-radius:var(--r-pill);background:linear-gradient(90deg,var(--cyan),#9df2ff);font-family:var(--font-manga);font-weight:900;font-size:1rem;letter-spacing:.06em;box-shadow:3px 3px 0 var(--ink);white-space:nowrap;pointer-events:none}',
+    '.jeu-pause-auto{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:20px calc(16px + var(--sr)) calc(20px + var(--sb)) calc(16px + var(--sl));background:rgba(35,25,66,.6);pointer-events:auto}',
+    '.jeu-pause-auto .card{width:100%;max-width:360px;text-align:center}',
+    '.jeu-pause-auto__titre{margin:0 0 6px;font-family:var(--font-manga);font-weight:900;font-size:2.4rem;color:var(--yellow);-webkit-text-stroke:2px var(--ink);paint-order:stroke fill;text-shadow:3px 3px 0 var(--ink)}',
+    '.jeu-pause-auto__texte{margin:0 0 8px;font-weight:800;font-size:1.05rem;line-height:1.3}',
+    '.jeu-pause-auto__geste{margin:10px 0 16px;font-weight:900;font-size:1.3rem;line-height:1.25;color:var(--pink)}',
+    '.jeu-pause-auto .stack{display:flex;flex-direction:column;gap:12px;align-items:stretch}'
+  ].join('\n');
+  document.head.appendChild(css);
+
+  var ecranJeu = document.querySelector('[data-screen="game"]');
+  var elEtape = document.createElement('div');
+  elEtape.className = 'jeu-etape'; elEtape.id = 'jeu-etape'; elEtape.hidden = true; elEtape.setAttribute('aria-live', 'polite');
+  var elPause = document.createElement('div');
+  elPause.className = 'jeu-pause-auto'; elPause.id = 'jeu-pause-auto'; elPause.hidden = true;
+  elPause.setAttribute('role', 'alertdialog'); elPause.setAttribute('aria-labelledby', 'jeu-pause-titre');
+  elPause.innerHTML =
+    '<div class="card"><p class="jeu-pause-auto__titre" id="jeu-pause-titre"></p>' +
+    '<p class="jeu-pause-auto__texte" id="jeu-pause-texte"></p>' +
+    '<p class="jeu-pause-auto__geste" id="jeu-pause-geste"></p>' +
+    '<div class="stack"><button type="button" class="btn btn--primary" id="jeu-pause-reprendre">Reprendre ▶</button>' +
+    '<button type="button" class="btn btn--sm" data-action="quit">Quitter la partie</button></div></div>';
+  if (ecranJeu) { ecranJeu.appendChild(elEtape); ecranJeu.appendChild(elPause); }
+  elPause.querySelector('#jeu-pause-reprendre').addEventListener('click', function () { if (P && P.etat === 'pauseAuto') reprendre(); });
+  function afficherEtape(visible) { elEtape.textContent = JC.textes.etape; elEtape.hidden = !visible; }
+  function montrerPauseAuto(visible) {
+    if (visible) {
+      elPause.querySelector('#jeu-pause-titre').textContent = JC.textes.pauseAutoTitre;
+      elPause.querySelector('#jeu-pause-texte').textContent = texte('pauseAuto');
+      elPause.querySelector('#jeu-pause-geste').textContent = JC.textes.pauseAutoGeste;
+    }
+    elPause.hidden = !visible;
+  }
+
+  /* =====================================================================
+     5. LA PARTIE
+     ===================================================================== */
+  var P = null;                  // partie en cours (null = aucune)
+  var Perf = { ips: 30 };
+  var derniereCorrection = null; // retard mesuré à la partie précédente (mémoire seulement, jamais enregistré)
+  var minuterie = null, raf = 0;
+
+  function bpmPour(facteur) { return Math.round(clamp(P.bpmBase * (facteur || 1), 40, JC.tempo.bpmMax) * 10) / 10; }
+  function fenetre(b) { return Math.min(Number(P.niveau.fenetreMs) || 160, JC.jugement.fenetreMaxRatio * b.duree); }
+  function retardDetection(ev) {
+    var R = JC.retardDetection;
+    if (ev.source === 'ballon') return R.ballonMs;
+    return clamp(R.poignetMs + Math.max(0, 30 - (Perf.ips || 30)) * R.poignetMsParImageEnMoins, 0, R.poignetMaxMs);
+  }
+  function dansFenetre(liste, g) { return liste.filter(function (f) { return g >= f.debutG && g < f.finG; })[0] || null; }
+  function evenementA(id, g) { var f = dansFenetre(P.historique, g); return f && f.id === id ? f : null; }
+  function multiplicateurA(g) { var f = dansFenetre(P.fenetresBonus, g); return f ? (f.def.multiplicateur || 1) : 1; }
+  function comboRatio() { return P.bonus ? 1 : clamp01((P.combo - P.comboDernierBonus) / SEUIL_BONUS); }
+
+  function creerPartie(joueur) {
+    var niv = DB.level(joueur.niveau);
+    var bpm = clamp(Number(niv.bpm) || 76, 40, JC.tempo.bpmMax);
+    var nbTemps = Math.max(8, Math.round((Number(niv.dureeSec) || 60) * bpm / 60 / 4) * 4);
+    var ech = Math.max(0, JC.echauffement.temps | 0);
+    var ecart = Array.isArray(niv.evenementTousLesTemps) && niv.evenementTousLesTemps.length === 2 ? niv.evenementTousLesTemps : [16, 24];
+    var rand = hasard(graineTest !== null ? graineTest : (Date.now() ^ 0x5bd1e995));
+    var sommes = {};
+    ['rythme'].concat(CRITERES).forEach(function (k) { sommes[k] = { s: 0, n: 0 }; });
+    return {
+      joueur: joueur, niveau: niv, bpmBase: bpm, etat: 'decompte', rand: rand,
+      temps: [], decomptes: [], baseG: 0, gSuivant: 0, dernierNAudio: null,
+      dernierTempsA: 0, demarrageA: 0, tempsRecus: 0, relances: 0, musiqueFinie: false,
+      finEchauffement: ech, finJeu: ech + nbTemps, nbTemps: nbTemps, rallonges: 0, echauffementFini: ech === 0, debutJeu: false,
+      echantillons: [], correction: 0, correctionInfo: null,
+      score: 0, qualite: 0, scoreRef: nbTemps * (POINTS.parfait || 100), combo: 0, meilleurCombo: 0, comboDernierBonus: 0,
+      parfaits: 0, biens: 0, rates: 0, total: 0, horsTemps: 0, dribblesRecus: 0, mauvaisesMains: 0,
+      sommes: sommes, recents: [], etoiles: 0, dernierFinalise: -1,
+      bonus: null, prochainBonus: BONUS.length ? BONUS[0].id : null, fenetresBonus: [],
+      evenement: null, historique: [], dernierEvenementId: null, ecartEvenements: ecart,
+      prochainEvenementG: ech + ecart[0] + Math.floor(rand() * (ecart[1] - ecart[0] + 1)),
+      coachA: -1e9, derniereCle: null, prochainConseilG: ech + JC.coach.tousLesTemps,
+      absentDepuis: null, brasDepuis: null, pauseDepuis: 0, sonBloque: false,
+      arretMusiqueA: 0, resultatsA: 0, bpmAffiche: bpm, bannereA: -1e9, sfxA: -1e9, stats: null
+    };
+  }
+
+  function demarrerPartie(j) {
+    if (P) abandonner('nouvelle');
+    var joueur = DB.State.player || j;
+    if (!joueur || !joueur.prenom) return;
+    Son.forceInterne = false;
+    P = creerPartie(joueur);
+    HUD.reset(); HUD.hand(joueur.main); HUD.tempo(P.bpmBase);
+    montrerPauseAuto(false); afficherEtape(P.finEchauffement > 0);
+    if (DB.State.screen !== 'game') ui.showScreen('game');
+    parler(DB.coachLine('depart'), 'haute');
+    lancerMusique('depart');
+    demarrerBoucles();
+  }
+
+  // (Re)lance la musique avec décompte ; la grille des temps repart à zéro côté musique
+  function lancerMusique(raison) {
+    P.etat = 'decompte'; P.dernierNAudio = null; P.decomptes = [];
+    P.demarrageA = maintenant(); P.tempsRecus = 0; P.musiqueFinie = false; P.arretMusiqueA = 0;
+    if (P.bonus && P.bonus.finG <= P.gSuivant) terminerBonus();
+    var turbo = P.bonus && P.bonus.def.bpmFacteur && P.bonus.def.bpmFacteur !== 1;
+    commandeAudio('audio:demarrer', { bpm: bpmPour(turbo ? P.bonus.def.bpmFacteur : 1), decompte: JC.decompte });
+    if (!P) return;
+    if (P.bonus) {
+      commandeAudio('audio:mode', { nom: P.bonus.id });
+      if (turbo) commandeAudio('audio:tempo', { bpm: bpmPour(1), aPartirDe: Math.max(0, P.bonus.finG - P.gSuivant) });
+    }
+    bus.emit('jeu:etat', { etat: 'decompte' });
+    if (raison === 'reprise') parler(texte('reprise'), 'haute');
+  }
+
+  /* ---------- Réception des temps de la musique ---------- */
+  function surTempsAudio(b) {
+    if (!P || !b || typeof b.n !== 'number' || typeof b.t !== 'number' || !isFinite(b.t)) return;
+    if (P.etat !== 'decompte' && P.etat !== 'jeu') return;
+    // Nouvelle grille : la musique (re)part de son début (départ, reprise, son débloqué)
+    if (P.dernierNAudio === null || b.n <= P.dernierNAudio) {
+      P.baseG = P.gSuivant;
+      if (P.sonBloque) { P.sonBloque = false; HUD.coach(''); }
+    }
+    P.dernierNAudio = b.n; P.dernierTempsA = maintenant(); P.tempsRecus++;
+    var duree = Number(b.duree) > 0 ? Number(b.duree) : 60000 / (Number(b.bpm) || 76);
+    if (b.n < 0) { P.decomptes.push({ d: b.decompte || -b.n, t: b.t, duree: duree, entendu: false }); return; }
+    var g = b.n + P.baseG;
+    if (g >= P.finJeu) return;                       // la partie est finie : temps ignorés
+    P.temps.push({ g: g, n: b.n, t: b.t, bpm: Number(b.bpm) || P.bpmBase, duree: duree, temps: typeof b.temps === 'number' ? b.temps : b.n % 4, entendu: false, resultat: null, finalise: false });
+    P.gSuivant = g + 1;
+    // fin de bonus : la musique quitte le mode bonus dès le temps suivant
+    if (P.bonus && g === P.bonus.finG - 1) commandeAudio('audio:mode', { nom: null });
+  }
+
+  /* ---------- Réception des dribbles (bloc 3) : rattachement au temps le plus proche ---------- */
+  function surRebond(ev) {
+    if (!P || (P.etat !== 'jeu' && P.etat !== 'decompte') || !ev || typeof ev.t !== 'number' || !isFinite(ev.t)) return;
+    P.dribblesRecus++;
+    var tPrior = ev.t - retardDetection(ev), meilleur = null;
+    for (var i = 0; i < P.temps.length; i++) {
+      var b = P.temps[i];
+      if (b.finalise || b.resultat) continue;
+      var echauf = b.g < P.finEchauffement;
+      var e = (echauf ? tPrior : tPrior - P.correction) - b.t;
+      var w = echauf ? JC.echauffement.fenetreRatio * b.duree : fenetre(b);
+      if (Math.abs(e) <= w && (!meilleur || Math.abs(e) < Math.abs(meilleur.e))) meilleur = { b: b, e: e, brut: tPrior - b.t, echauf: echauf };
+    }
+    if (!meilleur) { P.horsTemps++; return; }
+    meilleur.b.resultat = { dribble: ev, ecart: meilleur.e, ecartBrut: meilleur.brut };
+    if (meilleur.echauf) P.echantillons.push(meilleur.brut);
+  }
+
+  /* ---------- Boucle logique (toutes les 50 ms) ---------- */
+  function tic() {
+    if (!P) return;
+    var now = maintenant();
+    try {
+      if (P.etat === 'decompte' || P.etat === 'jeu') {
+        var i, x;
+        for (i = 0; i < P.decomptes.length; i++) { x = P.decomptes[i]; if (!x.entendu && x.t <= now + 20) { x.entendu = true; surDecompteEntendu(x); } }
+        for (i = 0; P && i < P.temps.length; i++) { x = P.temps[i]; if (!x.entendu && x.t <= now + 20) { x.entendu = true; surTempsEntendu(x); } }
+        if (!P) return;
+        finaliserDansLOrdre(now);
+        if (!P) return;
+        if (P.arretMusiqueA && now >= P.arretMusiqueA) { P.arretMusiqueA = 0; P.musiqueFinie = true; commandeAudio('audio:arreter', { fondu: true }); }
+        if (P.etat === 'jeu' && P.dernierFinalise >= P.finJeu - 1) terminerPartie();
+        else surveillerSon(now);
+        purger(now);
+      }
+      if (P && P.etat === 'fin' && P.resultatsA && now >= P.resultatsA) montrerResultats();
+    } catch (e) { console.warn('[Dribble Beat] Partie : erreur ignorée.', e); }
+  }
+
+  function surDecompteEntendu(x) {
+    HUD.countdown(x.d > 1 ? String(x.d - 1) : 'GO!');
+  }
+
+  function surTempsEntendu(x) {
+    if (P.etat === 'decompte') {
+      P.etat = 'jeu'; HUD.countdown(null);
+      bus.emit('jeu:etat', { etat: x.g < P.finEchauffement ? 'echauffement' : 'jeu' });
+      if (x.g === 0 && P.finEchauffement > 0) parler(texte('echauffement'), 'haute');
+    }
+    if (x.bpm !== P.bpmAffiche) { P.bpmAffiche = x.bpm; HUD.tempo(x.bpm); }
+
+    // Fin de l’échauffement : décidée un temps avant (le temps suivant est alors jugé avec la correction)
+    if (!P.echauffementFini && x.g === P.finEchauffement - 1) decideEchauffement();
+    if (!P.debutJeu && P.echauffementFini && x.g >= P.finEchauffement) debutJeu(x);
+    if (x.g === P.finJeu - 1) P.arretMusiqueA = x.t + JC.fin.coupureMusique * x.duree;
+    if (x.g < P.finEchauffement) return;
+
+    if (P.evenement) {
+      if (x.g === P.evenement.debutG) bus.emit('jeu:evenement', { id: P.evenement.id, phase: 'debut', debutG: P.evenement.debutG, finG: P.evenement.finG });
+      if (x.g >= P.evenement.finG) terminerEvenement();
+    }
+    if (!P.evenement && x.temps === 0 && x.g >= P.prochainEvenementG) lancerEvenement(x);
+    if (P.bonus && x.g >= P.bonus.finG) terminerBonus();
+    if (x.g >= P.prochainConseilG) { P.prochainConseilG = x.g + JC.coach.tousLesTemps; conseil(x.g); }
+  }
+
+  function decideEchauffement() {
+    var r = calculerCorrection(P.echantillons);
+    if (!r.ok && P.echantillons.length < JC.echauffement.dribblesMin && P.rallonges < JC.echauffement.rallongesMax) {
+      P.rallonges++;
+      P.finEchauffement += JC.echauffement.rallonge; P.finJeu += JC.echauffement.rallonge;
+      P.prochainEvenementG += JC.echauffement.rallonge; P.prochainConseilG += JC.echauffement.rallonge;
+      parler(texte('echauffementRallonge'), 'haute');
+      return;
+    }
+    P.echauffementFini = true; P.correctionInfo = r;
+    if (r.ok) { P.correction = r.correction; derniereCorrection = r.correction; }
+    else P.correction = derniereCorrection !== null ? derniereCorrection : 0;
+  }
+
+  function debutJeu() {
+    P.debutJeu = true;
+    afficherEtape(false);
+    if (P.finEchauffement > 0) {
+      banniere(JC.textes.cestParti, '');
+      parler(texte('cestPartiCoach'), 'haute');
+      bus.emit('jeu:etat', { etat: 'jeu' });
+    }
+  }
+
+  /* ---------- Jugement, dans l’ordre des temps ---------- */
+  function finaliserDansLOrdre(now) {
+    for (var i = 0; i < P.temps.length; i++) {
+      var b = P.temps[i];
+      if (b.finalise) continue;
+      if (!b.entendu) break;
+      if (!b.resultat) {
+        var limite = b.t + (b.g < P.finEchauffement ? JC.echauffement.fenetreRatio * b.duree : fenetre(b)) + JC.jugement.attenteMs;
+        if (now <= limite) break;                        // un dribble peut encore arriver (détection en cours)
+        b.resultat = { rate: true };
+      }
+      finaliser(b);
+      if (!P || P.etat !== 'jeu') return;
+    }
+  }
+
+  function finaliser(b) {
+    b.finalise = true;
+    P.dernierFinalise = Math.max(P.dernierFinalise, b.g);
+    var r = b.resultat, ev = r.dribble || null;
+
+    if (b.g < P.finEchauffement) {                     // échauffement : retour visuel seulement, pas de points
+      if (ev) { var jw = juger(r.ecartBrut, fenetre(b)); HUD.beatHit(jw.jugement === 'rate' ? '' : jw.jugement); }
+      return;
+    }
+
+    var jg = juger(ev ? r.ecart : null, fenetre(b)), jugement = jg.jugement;
+    var crit = ev && ev.criteres ? ev.criteres : null;
+    var evMain = evenementA('changeMain', b.g), evBas = evenementA('plusBas', b.g);
+    var mauvaiseMain = !!(ev && evMain && !ev.deuxMains && ev.main && ev.main !== evMain.main);
+    if (mauvaiseMain && jugement === 'parfait') jugement = 'bien';
+    var bas = !!(ev && evBas && crit && crit.hauteur && crit.hauteur.ok);
+    var mult = multiplicateurA(b.g), points = 0, qualite = 0;
+    if (jugement !== 'rate') {
+      var posture = ev && typeof ev.posture === 'number' && isFinite(ev.posture) ? clamp01(ev.posture) : null;
+      var fPosture = posture === null ? JC.jugement.postureInconnue : (1 - JC.jugement.posturePoids) + JC.jugement.posturePoids * posture;
+      // qualité = points sans les bonus (sert aux étoiles : elles récompensent le rythme et la posture, pas la chance)
+      qualite = (POINTS[jugement] || 0) * fPosture * (mauvaiseMain ? JC.jugement.mauvaiseMainFacteur : 1);
+      points = Math.round(qualite * (bas ? JC.jugement.plusBasFacteur : 1) * mult);
+    }
+
+    // statistiques
+    P.total++;
+    P.sommes.rythme.s += jg.jugement === 'rate' ? 0 : (mauvaiseMain ? Math.min(jg.rythme, 0.8) : jg.rythme); P.sommes.rythme.n++;
+    if (crit) CRITERES.forEach(function (k) { var c = crit[k]; if (c && typeof c.score === 'number' && isFinite(c.score)) { P.sommes[k].s += clamp01(c.score); P.sommes[k].n++; } });
+    P.recents.push({ jugement: jugement, criteres: crit }); if (P.recents.length > 16) P.recents.shift();
+
+    // combo
+    var palier = false, comboPerdu = 0;
+    if (jugement === 'rate') { comboPerdu = P.combo; P.combo = 0; P.comboDernierBonus = 0; P.rates++; }
+    else {
+      P.combo++; if (P.combo > P.meilleurCombo) P.meilleurCombo = P.combo;
+      if (jugement === 'parfait') P.parfaits++; else P.biens++;
+      palier = JC.combo.palier > 0 && P.combo % JC.combo.palier === 0;
+    }
+    if (mauvaiseMain) P.mauvaisesMains++;
+    P.score += points; P.qualite += qualite;
+
+    // affichage
+    HUD.beatHit(jugement);
+    if (points) HUD.score(P.score);
+    HUD.points(ratioQualite());
+    HUD.combo(comboRatio(), P.combo);
+    if (crit) HUD.criteria({ hauteur: okCritere(crit.hauteur), genoux: okCritere(crit.genoux), regard: okCritere(crit.regard), doigts: okCritere(crit.doigts) });
+    if (palier) {
+      onomatopee(CFG.sfx && CFG.sfx.combo, { color: 'var(--cyan)', y: 40 }, true);
+      commandeAudio('audio:effet', { nom: 'combo' });
+      bus.emit('jeu:combo', { combo: P.combo });
+    } else if (jugement === 'parfait' && P.combo >= 3 && P.parfaits % 2 === 1) onomatopee(CFG.sfx && CFG.sfx.parfait, null, false);
+    else if (jugement === 'bien' && P.rand() < 0.2) onomatopee(CFG.sfx && CFG.sfx.bien, { color: 'var(--cyan)' }, false);
+    if (mauvaiseMain) parler(texte('mauvaiseMain', { main: evMain.main }), 'normale');
+    if (comboPerdu >= JC.combo.encouragerSiPerdu) parler(DB.coachLine('encourage'), 'normale');
+
+    bus.emit('jeu:jugement', {
+      g: b.g, t: ev ? ev.t : null, tTemps: b.t, jugement: jugement, ecartMs: ev ? Math.round(r.ecart) : null, main: ev ? ev.main : null, points: points,
+      combo: P.combo, multiplicateur: mult, posture: ev ? ev.posture : null, mauvaiseMain: mauvaiseMain, bas: bas, source: ev ? ev.source : null
+    });
+    verifierEtoiles();
+    if (jugement !== 'rate') verifierBonus(b.g);
+  }
+
+  function ratioQualite() { return P.scoreRef > 0 ? P.qualite / P.scoreRef : 0; }
+  // Une seule onomatopée à la fois, jamais par-dessus une bannière (lisibilité) ; « prioritaire » = combo, bonus
+  var coucheSfx = document.getElementById('sfx-layer');
+  function onomatopee(liste, opts, prioritaire) {
+    var now = maintenant(), item = DB.pick(liste);
+    if (!item) return;
+    var banniereVisible = now - P.bannereA < 1800;
+    if (!prioritaire && (banniereVisible || now - P.sfxA < 900)) return;
+    if (coucheSfx) coucheSfx.textContent = '';
+    var o = Object.assign({}, opts || {});
+    if (banniereVisible) o.y = 22;
+    HUD.sfx(item, o); P.sfxA = now;
+  }
+  function banniere(t, variante) {
+    if (coucheSfx) coucheSfx.textContent = '';
+    HUD.banner(t, variante); P.bannereA = maintenant();
+  }
+  function verifierEtoiles() {
+    var r = ratioQualite(), nb = ETOILES.filter(function (s) { return r >= s; }).length;
+    if (nb > P.etoiles) { P.etoiles = nb; bus.emit('jeu:etoile', { nb: nb }); commandeAudio('audio:effet', { nom: 'etoile' }); }
+  }
+
+  /* ---------- Bonus (TURBO, POINTS x3) ---------- */
+  function verifierBonus(g) {
+    if (P.bonus || !BONUS.length || P.combo - P.comboDernierBonus < SEUIL_BONUS) return;
+    if (g >= P.finJeu - 6) return;                                    // trop près de la fin
+    var def = BONUS.filter(function (b) { return b.id === P.prochainBonus; })[0] || BONUS[0];
+    var tempoOccupe = P.evenement && P.evenement.def.bpmFacteur && P.evenement.def.bpmFacteur !== 1;
+    if (def.bpmFacteur && def.bpmFacteur !== 1 && tempoOccupe) {    // « Accélère ! » en cours : pas de Turbo par-dessus
+      def = BONUS.filter(function (b) { return !b.bpmFacteur || b.bpmFacteur === 1; })[0];
+      if (!def) return;
+    }
+    // côté musique, le bonus commence à la prochaine mesure
+    var nA = P.dernierNAudio === null ? 0 : Math.max(0, P.dernierNAudio + 1);
+    while (nA % 4 !== 0) nA++;
+    var debutG = nA + P.baseG, finG = Math.min(P.finJeu, debutG + (def.dureeTemps || 16));
+    P.bonus = { id: def.id, def: def, debutG: g + 1, finG: finG };
+    P.fenetresBonus.push(P.bonus);
+    P.prochainBonus = BONUS[(BONUS.indexOf(def) + 1) % BONUS.length].id;
+    if (def.bpmFacteur && def.bpmFacteur !== 1) {
+      commandeAudio('audio:tempo', { bpm: bpmPour(def.bpmFacteur), aPartirDe: nA });
+      commandeAudio('audio:tempo', { bpm: bpmPour(1), aPartirDe: finG - P.baseG });
+    }
+    commandeAudio('audio:mode', { nom: def.id });
+    commandeAudio('audio:effet', { nom: 'bonus' });
+    HUD.mode(def.id); HUD.multiplier(def.multiplicateur || 1); HUD.combo(1, P.combo);
+    onomatopee(CFG.sfx && CFG.sfx.bonus, { y: 46, color: 'var(--pink)' }, true);
+    var phrases = (CFG.coach && CFG.coach.bonus) || [];
+    parler(DB.fill(phrases[BONUS.indexOf(def)] || DB.pick(phrases), { prenom: P.joueur.prenom }), 'haute');
+    bus.emit('jeu:bonus', { id: def.id, actif: true, debutG: P.bonus.debutG, finG: finG });
+  }
+  function terminerBonus() {
+    if (!P || !P.bonus) return;
+    var b = P.bonus; P.bonus = null;
+    P.comboDernierBonus = P.combo;              // le bonus suivant se gagne avec de NOUVEAUX dribbles réussis
+    HUD.mode(null); HUD.multiplier(1); HUD.combo(comboRatio(), P.combo);
+    commandeAudio('audio:mode', { nom: null });
+    bus.emit('jeu:bonus', { id: b.id, actif: false, debutG: b.debutG, finG: b.finG });
+  }
+
+  /* ---------- Événements (Change de main, Accélère, Plus bas) ---------- */
+  function lancerEvenement(x) {
+    var turbo = P.bonus && P.bonus.def.bpmFacteur && P.bonus.def.bpmFacteur !== 1;
+    function possible(e) { return !(turbo && e.bpmFacteur && e.bpmFacteur !== 1); }
+    var cands = EVTS.filter(function (e) { return possible(e) && e.id !== P.dernierEvenementId; });
+    if (!cands.length) cands = EVTS.filter(possible);
+    if (!cands.length) { P.prochainEvenementG = x.g + 4; return; }
+    var def = cands[Math.floor(P.rand() * cands.length)];
+    var debutG = x.g + JC.evenements.annonceTempsAvant, finG = debutG + (def.dureeTemps || 8);
+    if (finG > P.finJeu - 2) { P.prochainEvenementG = Infinity; return; }        // trop près de la fin
+    var main = def.id === 'changeMain' ? autreMain(P.joueur.main) : null;
+    P.evenement = { id: def.id, def: def, annonceG: x.g, debutG: debutG, finG: finG, main: main };
+    P.historique.push(P.evenement);
+    P.dernierEvenementId = def.id;
+    banniere(def.banniere || '', def.variante || '');
+    parler(DB.fill(def.coach || '', { prenom: P.joueur.prenom, main: main || P.joueur.main }), 'haute');
+    if (main) HUD.hand(main);
+    if (def.bpmFacteur && def.bpmFacteur !== 1) {
+      commandeAudio('audio:tempo', { bpm: bpmPour(def.bpmFacteur), aPartirDe: debutG - P.baseG });
+      commandeAudio('audio:tempo', { bpm: bpmPour(1), aPartirDe: finG - P.baseG });
+    }
+    bus.emit('jeu:evenement', { id: def.id, phase: 'annonce', debutG: debutG, finG: finG });
+    var ec = P.ecartEvenements;
+    P.prochainEvenementG = finG + ec[0] + Math.floor(P.rand() * (ec[1] - ec[0] + 1));
+  }
+  function terminerEvenement() {
+    var e = P.evenement; P.evenement = null;
+    if (e.main) { HUD.hand(P.joueur.main); parler(texte('retourMain', { main: P.joueur.main }), 'haute'); }
+    bus.emit('jeu:evenement', { id: e.id, phase: 'fin', debutG: e.debutG, finG: e.finG });
+  }
+  function annulerEvenement() {          // pause : l’événement en cours est abandonné (la musique repart au tempo normal)
+    var e = P.evenement; if (!e) return;
+    P.evenement = null;
+    e.finG = Math.min(e.finG, P.gSuivant);
+    if (e.main) HUD.hand(P.joueur.main);
+    P.prochainEvenementG = Math.max(P.prochainEvenementG, P.gSuivant + JC.evenements.apresRepriseTemps);
+    bus.emit('jeu:evenement', { id: e.id, phase: 'fin', debutG: e.debutG, finG: e.finG });
+  }
+
+  /* ---------- Coach ---------- */
+  function parler(t, priorite) {
+    if (!t || !P) return false;
+    var now = maintenant();
+    if (priorite !== 'haute' && now - P.coachA < JC.coach.intervalleMinMs) return false;
+    P.coachA = now;
+    HUD.coach(t);
+    bus.emit('coach:dire', { texte: t, priorite: priorite || 'normale' });
+    return true;
+  }
+  // Conseil le plus utile d’après les derniers dribbles (le critère le plus faible, sinon un bravo)
+  function conseil(g) {
+    var R = P.recents.slice(-JC.coach.fenetre);
+    if (R.length < 4) return;
+    var faibles = [];
+    CRITERES.forEach(function (k) {
+      var v = R.filter(function (r) { return r.criteres && r.criteres[k] && isFinite(r.criteres[k].score); }).map(function (r) { return r.criteres[k].score; });
+      if (v.length < 3) return;
+      var m = moyenne(v), seuil = JC.coach.seuil * (k === 'doigts' ? 0.6 : 1);   // « doigts » : mesure peu fiable, conseil seulement si net
+      if (m < seuil) faibles.push({ k: k, m: m * (k === 'hauteur' && evenementA('plusBas', g) ? 0.5 : 1) });
+    });
+    var reussite = R.filter(function (r) { return r.jugement !== 'rate'; }).length / R.length;
+    if (reussite < 0.6) faibles.push({ k: 'rythme', m: reussite * 0.5 });
+    faibles.sort(function (a, b) { return a.m - b.m; });
+    var cle = faibles.length ? faibles[0].k : (P.combo >= 6 ? 'bravo' : null);
+    if (faibles.length > 1 && cle === P.derniereCle) cle = faibles[1].k;
+    if (cle && parler(DB.coachLine(cle), 'normale')) P.derniereCle = cle;
+  }
+
+  /* ---------- Pauses ---------- */
+  function oublierEnAttente() {          // les temps pas encore jugés sont oubliés (ni réussis, ni ratés)
+    P.temps = P.temps.filter(function (b) { return b.finalise; });
+    P.decomptes = [];
+    P.gSuivant = P.dernierFinalise + 1;
+    P.dernierNAudio = null; P.arretMusiqueA = 0;
+    if (P.evenement) annulerEvenement();
+    HUD.countdown(null);
+  }
+  function suspendre(type) {             // 'pause' (bouton, appli en arrière-plan) ou 'pause-auto' (enfant sorti du cadre)
+    if (!P || (P.etat !== 'jeu' && P.etat !== 'decompte')) return;
+    oublierEnAttente();
+    P.etat = type === 'pause-auto' ? 'pauseAuto' : 'pause';
+    P.pauseDepuis = maintenant(); P.brasDepuis = null; P.absentDepuis = null;
+    commandeAudio('audio:arreter', { fondu: true });
+    HUD.beat(1);
+    if (type === 'pause-auto') { montrerPauseAuto(true); parler(texte('pauseAutoVoix'), 'haute'); }
+    bus.emit('jeu:etat', { etat: type });
+  }
+  function reprendre() {
+    if (!P || (P.etat !== 'pause' && P.etat !== 'pauseAuto')) return;
+    montrerPauseAuto(false);
+    P.absentDepuis = null; P.brasDepuis = null;
+    lancerMusique('reprise');
+  }
+
+  /* ---------- Musique muette ou bloquée ---------- */
+  function surveillerSon(now) {
+    if (P.sonBloque || P.musiqueFinie) return;
+    var attendu = P.tempsRecus ? JC.son.silenceMaxMs : JC.son.premierTempsMs;
+    var depuis = P.tempsRecus ? P.dernierTempsA : P.demarrageA;
+    if (now - depuis < attendu) return;
+    oublierEnAttente();
+    if (!Son.forceInterne && P.tempsRecus && P.relances < JC.son.relancesMax) {
+      P.relances++;                                 // musique coupée par le téléphone (appel, alarme…) : on la relance
+      lancerMusique('reprise');
+    } else if (!Son.forceInterne) {
+      Son.forceInterne = true;                      // aucun son possible : horloge interne silencieuse
+      ui.toast(JC.textes.sonIndisponible, 4500);
+      HUD.coach(JC.textes.sonIndisponible);
+      lancerMusique('interne');
+    } else { P.demarrageA = now; P.tempsRecus = 0; }
+  }
+
+  /* ---------- Fin de partie ---------- */
+  function statistiques() {
+    var crit = {}, sp = 0, sw = 0;
+    ['rythme'].concat(CRITERES).forEach(function (k) {
+      var s = P.sommes[k];
+      crit[k] = s.n ? Math.round(100 * s.s / s.n) : null;
+      if (crit[k] !== null && POIDS[k] > 0) { sp += POIDS[k] * crit[k]; sw += POIDS[k]; }
+    });
+    var ratio = ratioQualite();
+    return {
+      score: Math.round(P.score), etoiles: ETOILES.filter(function (s) { return ratio >= s; }).length,
+      meilleurCombo: P.meilleurCombo, reussis: P.parfaits + P.biens, total: P.total,
+      precision: sw ? Math.round(sp / sw) : 0, criteres: crit,
+      parfaits: P.parfaits, biens: P.biens, rates: P.rates, horsTemps: P.horsTemps, mauvaisesMains: P.mauvaisesMains,
+      correctionMs: Math.round(P.correction), ratio: Math.round(ratio * 1000) / 1000
+    };
+  }
+  function terminerPartie() {
+    if (!P || P.etat === 'fin') return;
+    if (P.bonus) terminerBonus();
+    P.etat = 'fin';
+    if (!P.musiqueFinie) { P.musiqueFinie = true; commandeAudio('audio:arreter', { fondu: true }); }
+    afficherEtape(false); HUD.countdown(null); HUD.beat(1);
+    HUD.banner(JC.textes.fin, '');
+    parler(texte('finCoach'), 'haute');
+    P.stats = statistiques();
+    bus.emit('jeu:etat', { etat: 'fin' });
+    bus.emit('jeu:fin', { stats: Object.assign({}, P.stats) });
+    P.resultatsA = maintenant() + JC.fin.attenteResultatsMs;
+  }
+  function montrerResultats() {
+    var s = P.stats;
+    P.resultatsA = 0;
+    arreterBoucles();
+    try { ui.closeSheet('sheet-pause'); } catch (e) { /* ignoré */ }
+    P = null;
+    ui.showResults(s);
+  }
+  function abandonner(raison) {
+    if (!P) return;
+    P = null;
+    arreterBoucles();
+    commandeAudio('audio:arreter', { fondu: raison !== 'camera' });
+    interneArreter();
+    montrerPauseAuto(false); afficherEtape(false);
+    HUD.countdown(null); HUD.mode(null); HUD.multiplier(1); HUD.beat(1);
+    bus.emit('jeu:etat', { etat: 'arret', raison: raison });
+  }
+
+  /* ---------- Boucles : logique (50 ms) et anneau du rythme (à chaque image de l’écran) ---------- */
+  function demarrerBoucles() {
+    arreterBoucles();
+    minuterie = setInterval(function () { interneTic(); tic(); }, 50);
+    if (window.requestAnimationFrame) raf = requestAnimationFrame(dessiner);
+  }
+  function arreterBoucles() {
+    clearInterval(minuterie); minuterie = null;
+    if (raf && window.cancelAnimationFrame) cancelAnimationFrame(raf);
+    raf = 0;
+  }
+  function dessiner() {
+    raf = 0;
+    if (!P) return;
+    if (P.etat === 'decompte' || P.etat === 'jeu') {
+      var now = maintenant(), prochain = null, i, x;
+      for (i = 0; i < P.decomptes.length; i++) { x = P.decomptes[i]; if (x.t > now - 30 && (!prochain || x.t < prochain.t)) prochain = x; }
+      for (i = 0; i < P.temps.length; i++) { x = P.temps[i]; if (x.t > now - 30 && (!prochain || x.t < prochain.t)) prochain = x; }
+      HUD.beat(prochain ? clamp01((prochain.t - now) / prochain.duree) : 1);
+    }
+    raf = requestAnimationFrame(dessiner);
+  }
+  function purger(now) {
+    if (P.temps.length > 24) P.temps = P.temps.filter(function (b) { return !b.finalise || b.t > now - 4000; });
+    if (P.decomptes.length > 8) P.decomptes = P.decomptes.filter(function (x) { return !x.entendu || x.t > now - 2000; });
+  }
+
+  /* =====================================================================
+     6. BRANCHEMENTS
+     ===================================================================== */
+  bus.on('partie:demarrer', function (j) { try { demarrerPartie(j); } catch (e) { console.warn('[Dribble Beat] Départ de partie impossible.', e); } });
+  bus.on('partie:pause', function () { suspendre('pause'); });
+  bus.on('partie:reprendre', function () { if (P && (P.etat === 'pause' || P.etat === 'pauseAuto')) reprendre(); });
+  bus.on('partie:stop', function () { abandonner('stop'); });
+  bus.on('camera:perdue', function () { if (P) { abandonner('camera'); ui.toast(JC.textes.cameraPerdue, 4500); } });
+  bus.on('ecran', function (d) { if (P && d && d.nom !== 'game' && P.etat !== 'fin') abandonner('ecran'); });
+
+  bus.on('audio:temps', function (b) { try { surTempsAudio(b); } catch (e) { console.warn('[Dribble Beat] Temps ignoré.', e); } });
+  bus.on('audio:etat', function (e) {
+    if (!e) return;
+    if (e.etat === 'indisponible') { Son.indisponible = true; return; }
+    if (e.etat === 'bloque' && P && (P.etat === 'decompte' || P.etat === 'jeu') && !Son.forceInterne) {
+      oublierEnAttente();
+      P.etat = 'decompte'; P.sonBloque = true;
+      parler(JC.textes.sonBloque, 'haute');
+      ui.toast(JC.textes.sonBloque, 5000);
+    }
+  });
+  bus.on('dribble:rebond', function (ev) { try { surRebond(ev); } catch (e) { console.warn('[Dribble Beat] Dribble ignoré.', e); } });
+  bus.on('dribble:posture', function (p) {
+    if (!P || P.etat !== 'jeu' || !p) return;
+    HUD.criteria({ genoux: okCritere(p.genoux), regard: okCritere(p.regard) });
+  });
+  bus.on('dribble:inactif', function () { if (P && P.etat === 'jeu' && P.debutJeu) parler(DB.coachLine('rythme'), 'normale'); });
+  bus.on('vision:perf', function (p) { if (p && typeof p.ips === 'number' && isFinite(p.ips) && p.ips > 0) Perf.ips = p.ips; });
+
+  // Présence de l’enfant (pause automatique) et geste « deux bras levés » (reprise)
+  bus.on('vision:image', function (img) {
+    if (!P || !img) return;
+    var pts = img.pose && img.pose.points, vmin = JC.absence.visibiliteMin;
+    var t = typeof img.t === 'number' && isFinite(img.t) ? img.t : maintenant();
+    function vu(i) { return !!(pts && pts[i] && pts[i].v >= vmin); }
+    var present = !!pts && pts.length >= 25 && vu(0) && (vu(23) || vu(24));
+    if (P.etat === 'jeu' || P.etat === 'decompte') {
+      if (P.sonBloque) { P.absentDepuis = null; return; }
+      if (present) P.absentDepuis = null;
+      else if (P.absentDepuis === null) P.absentDepuis = t;
+      else if (t - P.absentDepuis >= JC.absence.apresMs) suspendre('pause-auto');
+    } else if (P.etat === 'pauseAuto') {
+      var leves = present && vu(15) && vu(16) && pts[15].y < pts[0].y && pts[16].y < pts[0].y;
+      if (!leves || maintenant() - P.pauseDepuis < JC.absence.pauseMinMs) P.brasDepuis = null;
+      else if (P.brasDepuis === null) P.brasDepuis = t;
+      else if (t - P.brasDepuis >= JC.absence.brasLevesMs) reprendre();
+    }
+  });
+
+  /* =====================================================================
+     7. ACCROCHE DE TEST (?test=1)
+     ===================================================================== */
+  try {
+    if (new URLSearchParams(location.search).get('test') === '1') {
+      window.__dribbleJeu = {
+        JC: JC, Horloge: Horloge, Son: Son,
+        graine: function (s) { graineTest = s; },
+        partie: function () { return P; },
+        stats: function () { return P ? statistiques() : null; },
+        tic: function () { interneTic(); tic(); },
+        juger: juger, calculerCorrection: calculerCorrection,
+        oublierCorrection: function () { derniereCorrection = null; },
+        reinitialiserSon: function () { Son.indisponible = false; Son.forceInterne = false; }
+      };
+    }
+  } catch (e) { /* ignoré */ }
+
+  DB.registerModule('jeu');
+})();
+</script>
+<!-- ▼▼▼ BLOC 6 — Effets manga ▼▼▼ -->
+<!--
+  Ce bloc ajoute les EFFETS VISUELS « manga / kawaii », sans rien changer aux règles du jeu :
+   • étincelles fluo et onde de choc à l’endroit où le ballon touche le sol (PARFAIT, BIEN), petit nuage sur RATÉ ;
+   • traînée scintillante sur le ballon dès 5 dribbles réussis d’affilée (flammes en TURBO, étoiles en POINTS x3) ;
+   • « cadre d’impact » à chaque palier de combo : lignes de concentration (集中線), explosion de particules, secousse ;
+   • bonus : lignes de concentration colorées, gerbes de confettis, braises (Turbo) ou étoiles (x3) sur les bords ;
+   • étoile gagnée : pluie d’étoiles depuis la jauge de points ; annonce d’événement : traits de vitesse ;
+   • pulsation douce autour de l’anneau du rythme sur chaque « boum » ;
+   • fin : feux d’artifice, puis confettis sur l’écran de résultats (plus il y a d’étoiles, plus il y en a).
+
+  Un seul calque <canvas>, sous le HUD, dessiné seulement quand il y a quelque chose à montrer.
+  Léger : sprites pré-dessinés, nombre de particules plafonné (réduit sur téléphone lent), résolution limitée.
+  « Effets visuels réduits » (ou le réglage d’accessibilité du téléphone) coupe tous ces effets et la secousse.
+  Pas de flash plein écran blanc ni de clignotement rapide (photosensibilité).
+
+  Entrées : jeu:jugement|combo|bonus|etoile|evenement|etat|fin, audio:temps, vision:image|perf, ecran
+-->
+<script type="application/json" id="config-effets">
+{
+  "_note": "Réglages des effets visuels (bloc 6). Mettre false pour couper un effet. Les couleurs sont celles du thème (rose, jaune, cyan, vert, violet, orange).",
+  "particulesMax": 260,
+  "particulesMaxTelephoneLent": 120,
+  "resolutionMax": 2,
+  "etincellesParfait": 18,
+  "etincellesBien": 9,
+  "nuageRate": 5,
+  "traineeDesCombo": 5,
+  "secousse": true,
+  "lignesDeConcentration": true,
+  "pulsationRythme": true,
+  "feuxDArtifice": true,
+  "confettisResultats": true,
+  "couleurs": ["#ff4fa3", "#ffe14d", "#2fe0ff", "#7dff5c", "#8b5cf6", "#ff8a1f"]
+}
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var DB = window.DribbleBeat;
+  if (!DB || !DB.bus) return;
+  var bus = DB.bus;
+  var app = document.getElementById('app');
+  var ecranJeu = document.querySelector('[data-screen="game"]');
+  var ecranRes = document.querySelector('[data-screen="results"]');
+  if (!app || !ecranJeu) return;
+
+  /* =====================================================================
+     1. CONFIGURATION
+     ===================================================================== */
+  var DEFAUT = {
+    particulesMax: 260, particulesMaxTelephoneLent: 120, resolutionMax: 2,
+    etincellesParfait: 18, etincellesBien: 9, nuageRate: 5, traineeDesCombo: 5,
+    secousse: true, lignesDeConcentration: true, pulsationRythme: true, feuxDArtifice: true, confettisResultats: true,
+    couleurs: ['#ff4fa3', '#ffe14d', '#2fe0ff', '#7dff5c', '#8b5cf6', '#ff8a1f']
+  };
+  var EC = Object.assign({}, DEFAUT);
+  try {
+    var brut = JSON.parse(document.getElementById('config-effets').textContent);
+    Object.keys(DEFAUT).forEach(function (k) {
+      if (brut[k] === undefined) return;
+      if (k === 'couleurs') { if (Array.isArray(brut.couleurs) && brut.couleurs.length >= 3 && brut.couleurs.every(function (c) { return /^#[0-9a-f]{6}$/i.test(c); })) EC.couleurs = brut.couleurs; }
+      else if (typeof brut[k] === typeof DEFAUT[k]) EC[k] = brut[k];
+    });
+  } catch (e) { console.warn('[Dribble Beat] Bloc « config-effets » illisible : réglages par défaut.', e); }
+  var C = { rose: 0, jaune: 1, cyan: 2, vert: 3, violet: 4, orange: 5 };
+  function couleur(i) { return EC.couleurs[i % EC.couleurs.length]; }
+
+  /* =====================================================================
+     2. CALQUE DE DESSIN ET SPRITES
+     ===================================================================== */
+  var css = document.createElement('style');
+  css.id = 'style-bloc6';
+  css.textContent = [
+    '.fx-calque{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:-1}',
+    '.fx-calque.is-dessus{z-index:20}',
+    '#app.fx-secousse{animation:fx-secousse .28s linear}',
+    '@keyframes fx-secousse{0%,100%{transform:translate(0,0)}20%{transform:translate(-5px,3px)}40%{transform:translate(5px,-3px)}60%{transform:translate(-3px,-2px)}80%{transform:translate(3px,2px)}}',
+    '#app.fx-reduced .fx-calque{display:none}'
+  ].join('\n');
+  document.head.appendChild(css);
+
+  var cv = document.createElement('canvas');
+  cv.className = 'fx-calque'; cv.id = 'fx-calque'; cv.setAttribute('aria-hidden', 'true');
+  var ctx = cv.getContext('2d');
+  if (!ctx) return;
+  function placerDans(ecran, dessus) {
+    if (!ecran) return;
+    var ref = ecran.firstElementChild && ecran.firstElementChild.classList.contains('speedlines') ? ecran.firstElementChild.nextSibling : ecran.firstElementChild;
+    if (cv.parentNode !== ecran) ecran.insertBefore(cv, ref);
+    cv.classList.toggle('is-dessus', !!dessus);
+  }
+  placerDans(ecranJeu, false);
+
+  // Sprites pré-dessinés (bien plus rapide qu’un dégradé à chaque particule)
+  function sprite(taille, dessin) { var c = document.createElement('canvas'); c.width = c.height = taille; dessin(c.getContext('2d'), taille); return c; }
+  var LUEUR = EC.couleurs.map(function (col) {
+    return sprite(64, function (g, t) {
+      var d = g.createRadialGradient(t / 2, t / 2, 0, t / 2, t / 2, t / 2);
+      d.addColorStop(0, 'rgba(255,255,255,1)'); d.addColorStop(0.22, col); d.addColorStop(0.55, col + '55'); d.addColorStop(1, col + '00');
+      g.fillStyle = d; g.fillRect(0, 0, t, t);
+    });
+  });
+  var ETOILE = EC.couleurs.map(function (col) {
+    return sprite(64, function (g, t) {
+      var m = t / 2, d = g.createRadialGradient(m, m, 0, m, m, m);
+      d.addColorStop(0, col + 'aa'); d.addColorStop(1, col + '00');
+      g.fillStyle = d; g.fillRect(0, 0, t, t);
+      g.beginPath();                                    // étoile « kira » à 4 branches
+      for (var i = 0; i < 8; i++) { var a = i * Math.PI / 4, r = i % 2 ? t * 0.1 : t * 0.47; g.lineTo(m + Math.cos(a) * r, m + Math.sin(a) * r); }
+      g.closePath(); g.fillStyle = '#fff'; g.fill();
+    });
+  });
+  var NUAGE = sprite(64, function (g, t) {
+    var d = g.createRadialGradient(t / 2, t / 2, 0, t / 2, t / 2, t / 2);
+    d.addColorStop(0, 'rgba(210,200,240,.75)'); d.addColorStop(1, 'rgba(210,200,240,0)');
+    g.fillStyle = d; g.fillRect(0, 0, t, t);
+  });
+
+  /* =====================================================================
+     3. ÉTAT
+     ===================================================================== */
+  var particules = [], planifies = [], raf = 0, sale = false, W = 0, H = 0, dpr = 1;
+  var etatJeu = 'arret', combo = 0, bonus = null, lent = 0, telephoneLent = false;
+  var temps = [];                 // boums à venir (pulsation)
+  var hist = [];                  // dernières images : ballon, poignets, chevilles (pour viser l’impact)
+  var image = { w: 480, h: 640 }, mainActive = null, accelereJusqua = 0;
+  var mesures = { images: 0, ms: 0, pic: 0 }, crees = {};
+
+  var Horloge = { now: function () { return performance.now(); } };   // remplaçable pour les tests
+  function maintenant() { return Horloge.now(); }
+  function reduit() { return app.classList.contains('fx-reduced'); }
+  function maxParticules() { return telephoneLent ? EC.particulesMaxTelephoneLent : EC.particulesMax; }
+  function hasard(a, b) { return a + Math.random() * (b - a); }
+
+  function dimensionner() {
+    var r = app.getBoundingClientRect();
+    var d = Math.min(window.devicePixelRatio || 1, telephoneLent ? 1.25 : EC.resolutionMax);
+    if (r.width < 1 || r.height < 1) return false;
+    if (r.width !== W || r.height !== H || d !== dpr) {
+      W = r.width; H = r.height; dpr = d;
+      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+      sale = true;
+    }
+    return true;
+  }
+  window.addEventListener('resize', function () { dimensionner(); });
+
+  // Image de la caméra (brute, 0-1) → écran : même cadrage « cover » et même miroir que la vidéo
+  function versEcran(x, y) {
+    var s = Math.max(W / image.w, H / image.h), dw = image.w * s, dh = image.h * s;
+    return { x: W - ((W - dw) / 2 + x * dw), y: (H - dh) / 2 + y * dh, s: s };
+  }
+  function centreDe(el) {
+    if (!el) return null;
+    var r = el.getBoundingClientRect(), a = app.getBoundingClientRect();
+    if (!r.width) return null;
+    return { x: r.left - a.left + r.width / 2, y: r.top - a.top + r.height / 2 };
+  }
+
+  /* =====================================================================
+     4. PARTICULES
+     ===================================================================== */
+  function ajouter(p) {
+    if (reduit()) return;
+    if (particules.length >= maxParticules()) particules.shift();     // la plus ancienne laisse sa place
+    p.age = 0; particules.push(p); crees[p.t] = (crees[p.t] || 0) + 1;
+    reveiller();
+  }
+  function lueur(x, y, c, o) {
+    o = o || {};
+    ajouter({ t: 'lueur', x: x, y: y, vx: o.vx || 0, vy: o.vy || 0, g: o.g || 0, frein: o.frein || 0, vie: o.vie || 0.6, taille: o.taille || 18, fin: o.fin === undefined ? 0.2 : o.fin, c: c });
+  }
+  function etincelles(x, y, n, couleurs, force) {
+    for (var i = 0; i < n; i++) {
+      var a = -Math.PI / 2 + hasard(-1.35, 1.35), v = hasard(0.45, 1) * force;
+      ajouter({ t: 'etincelle', x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 900, frein: 1.2, vie: hasard(0.35, 0.6), taille: hasard(2, 3.6), c: couleurs[i % couleurs.length] });
+    }
+  }
+  function anneau(x, y, r0, r1, c, vie, epaisseur) { ajouter({ t: 'anneau', x: x, y: y, r0: r0, r1: r1, vie: vie || 0.45, taille: epaisseur || 5, c: c }); }
+  function etoiles(x, y, n, couleurs, force, o) {
+    o = o || {};
+    for (var i = 0; i < n; i++) {
+      var a = o.angle !== undefined ? o.angle + hasard(-0.6, 0.6) : hasard(0, Math.PI * 2), v = hasard(0.3, 1) * force;
+      ajouter({ t: 'etoile', x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: o.g === undefined ? 380 : o.g, frein: 1.5, vie: hasard(0.6, 1.1), taille: hasard(14, 26), rot: hasard(0, 6.28), vrot: hasard(-6, 6), c: couleurs[i % couleurs.length] });
+    }
+  }
+  function confettis(x, y, n, force, angle, ecart) {
+    for (var i = 0; i < n; i++) {
+      var a = angle + hasard(-ecart, ecart), v = hasard(0.5, 1) * force;
+      ajouter({ t: 'confetti', x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 520, frein: 1.8, vie: hasard(1.6, 2.6), taille: hasard(6, 11), rot: hasard(0, 6.28), vrot: hasard(-9, 9), phase: hasard(0, 6.28), c: Math.floor(hasard(0, EC.couleurs.length)) });
+    }
+  }
+  function rayons(c, vie) { if (EC.lignesDeConcentration) ajouter({ t: 'rayons', x: W / 2, y: H * 0.45, vie: vie || 0.5, c: c, graine: Math.random() * 1000 }); }
+  function voile(c, vie, alpha) { ajouter({ t: 'voile', x: 0, y: 0, vie: vie || 0.35, c: c, alpha: alpha || 0.18 }); }
+  function traits(vie) { for (var i = 0; i < 14; i++) ajouter({ t: 'trait', x: hasard(-W * 0.3, W), y: hasard(H * 0.15, H * 0.85), vx: hasard(900, 1500), vy: hasard(-280, -180), vie: vie || 0.5, taille: hasard(1.5, 3.5), c: i % 3 === 0 ? C.jaune : C.cyan }); }
+  function secouer() {
+    if (!EC.secousse || reduit()) return;
+    app.classList.remove('fx-secousse'); void app.offsetWidth; app.classList.add('fx-secousse');
+    setTimeout(function () { app.classList.remove('fx-secousse'); }, 320);
+  }
+  function plus_tard(ms, fn) { planifies.push({ a: maintenant() + ms, fn: fn }); reveiller(); }
+
+  /* =====================================================================
+     5. OÙ DESSINER : l’impact du ballon, la main qui dribble
+     ===================================================================== */
+  function memoriser(img) {
+    if (!img) return;
+    if (img.w && img.h) { image.w = img.w; image.h = img.h; }
+    var P = img.pose && img.pose.points, e = { t: img.t, ballon: null, poignets: {}, sol: null };
+    if (img.ballons && img.ballons.length) {
+      var b = img.ballons.reduce(function (m, x) { return !m || x.score > m.score ? x : m; }, null);
+      e.ballon = { x: b.x, y: b.y, r: Math.max(b.rx || 0, b.ry || 0) };
+    }
+    if (P && P.length >= 29) {
+      if (P[15].v >= 0.4) e.poignets.gauche = { x: P[15].x, y: P[15].y };
+      if (P[16].v >= 0.4) e.poignets.droite = { x: P[16].x, y: P[16].y };
+      var ch = [P[27], P[28]].filter(function (p) { return p.v >= 0.3; });
+      if (ch.length) e.sol = Math.max.apply(null, ch.map(function (p) { return p.y; })) + 0.01;
+    }
+    if (!e.ballon && !e.poignets.gauche && !e.poignets.droite) return;
+    hist.push(e);
+    while (hist.length && hist[0].t < img.t - 2500) hist.shift();
+    if (hist.length > 90) hist.shift();
+  }
+  function pointImpact(t, main) {
+    if (!dimensionner()) return null;
+    var cible = typeof t === 'number' ? t : maintenant(), bas = null, proche = null;
+    hist.forEach(function (e) {
+      if (e.ballon && Math.abs(e.t - cible) < 170 && (!bas || e.ballon.y > bas.y)) bas = e.ballon;
+      if (!proche || Math.abs(e.t - cible) < Math.abs(proche.t - cible)) proche = e;
+    });
+    if (bas) { var p = versEcran(bas.x, Math.min(1, bas.y + bas.r * 0.85)); return { x: p.x, y: p.y, rayon: bas.r * image.w * p.s }; }
+    if (proche && Math.abs(proche.t - cible) < 600) {
+      var m = proche.poignets[main] || proche.poignets.droite || proche.poignets.gauche;
+      if (m) { var q = versEcran(m.x, proche.sol !== null ? Math.min(proche.sol, 0.98) : Math.min(0.97, m.y + 0.22)); return { x: q.x, y: q.y, rayon: 24 }; }
+    }
+    return { x: W / 2, y: H * 0.72, rayon: 24, defaut: true };
+  }
+  function pointBallonActuel() {
+    var e = hist[hist.length - 1];
+    if (!e || maintenant() - e.t > 350) return null;
+    if (e.ballon) return versEcran(e.ballon.x, e.ballon.y);
+    var m = (mainActive && e.poignets[mainActive]) || e.poignets.droite || e.poignets.gauche;
+    if (!m) return null;
+    var q = versEcran(m.x, m.y); q.y += 18; return q;
+  }
+
+  /* =====================================================================
+     6. LES EFFETS
+     ===================================================================== */
+  function surJugement(j) {
+    if (!j || reduit() || !dimensionner()) return;
+    combo = j.combo || 0; if (j.main) mainActive = j.main;
+    var p = pointImpact(j.t, j.main);
+    if (!p) return;
+    if (j.jugement === 'parfait') {
+      etincelles(p.x, p.y, EC.etincellesParfait, [C.jaune, C.cyan, C.rose, C.vert], 820);
+      anneau(p.x, p.y, p.rayon * 0.6, p.rayon * 2.6 + 30, C.jaune, 0.42, 6);
+      lueur(p.x, p.y, C.jaune, { taille: 120, vie: 0.28 });
+      if (j.multiplicateur > 1 || j.bas) etoiles(p.x, p.y - 10, 4, [C.jaune, C.rose], 260, { angle: -Math.PI / 2 });
+    } else if (j.jugement === 'bien') {
+      etincelles(p.x, p.y, EC.etincellesBien, [C.cyan, C.vert], 600);
+      anneau(p.x, p.y, p.rayon * 0.5, p.rayon * 1.8 + 20, C.cyan, 0.38, 4);
+    } else {
+      for (var i = 0; i < EC.nuageRate; i++) ajouter({ t: 'nuage', x: p.x + hasard(-26, 26), y: p.y + hasard(-8, 6), vx: hasard(-40, 40), vy: hasard(-50, -15), g: 0, frein: 1.5, vie: hasard(0.5, 0.8), taille: hasard(26, 42) });
+    }
+  }
+  function surCombo(d) {
+    if (reduit() || !dimensionner()) return;
+    rayons('#ffffff', 0.45);
+    var c = { x: W / 2, y: H * 0.45 };
+    for (var i = 0; i < 36; i++) {
+      var a = i / 36 * Math.PI * 2, v = hasard(380, 620);
+      lueur(c.x, c.y, i % EC.couleurs.length, { vx: Math.cos(a) * v, vy: Math.sin(a) * v, frein: 2.2, vie: hasard(0.55, 0.85), taille: hasard(14, 24) });
+    }
+    anneau(c.x, c.y, 20, Math.max(W, H) * 0.55, C.rose, 0.5, 9);
+    secouer();
+  }
+  function surBonus(d) {
+    if (!d) return;
+    if (!d.actif) { bonus = null; return; }
+    bonus = d.id;
+    if (reduit() || !dimensionner()) return;
+    var c = d.id === 'turbo' ? C.orange : C.cyan;
+    rayons(couleur(c), 0.6);
+    voile(couleur(c), 0.4, 0.16);
+    confettis(0, H, 40, 900, -Math.PI / 3, 0.35);
+    confettis(W, H, 40, 900, -Math.PI * 2 / 3, 0.35);
+    secouer();
+  }
+  function surEtoile(d) {
+    if (reduit() || !dimensionner()) return;
+    var stars = document.querySelectorAll('#hud-pbar .pbar__star'), el = stars[Math.max(0, Math.min(stars.length - 1, (d && d.nb ? d.nb : 1) - 1))];
+    var c = centreDe(el) || { x: W / 2, y: 40 };
+    etoiles(c.x, c.y, 14, [C.jaune, C.jaune, C.rose, C.cyan], 420, { g: 520 });
+    anneau(c.x, c.y, 6, 70, C.jaune, 0.5, 4);
+  }
+  function surEvenement(d) {
+    if (!d) return;
+    if (d.phase === 'annonce') { if (!reduit() && dimensionner()) traits(0.55); if (d.id === 'accelere') accelereJusqua = Infinity; }
+    if (d.phase === 'fin' && d.id === 'accelere') accelereJusqua = 0;
+  }
+  function feuDArtifice(x, y, c) {
+    for (var i = 0; i < 30; i++) {
+      var a = i / 30 * Math.PI * 2, v = hasard(200, 330);
+      ajouter({ t: 'etincelle', x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 160, frein: 1.1, vie: hasard(0.9, 1.3), taille: 2.6, c: i % 2 ? c : C.jaune });
+    }
+    lueur(x, y, c, { taille: 140, vie: 0.3 });
+  }
+  function surFin() {
+    if (!EC.feuxDArtifice || reduit() || !dimensionner()) return;
+    [[0, 0.3, 0.3, C.rose], [350, 0.7, 0.25, C.cyan], [700, 0.5, 0.18, C.vert], [1050, 0.25, 0.22, C.violet]].forEach(function (f) {
+      plus_tard(f[0], function () { feuDArtifice(W * f[1], H * f[2], f[3]); });
+    });
+  }
+  var dernieresStats = null;
+  function pluieDeConfettis() {
+    if (!EC.confettisResultats || reduit() || !dimensionner()) return;
+    var nb = dernieresStats ? (dernieresStats.etoiles | 0) : 1, total = 30 + 45 * nb, record = !!(document.getElementById('res-record') && !document.getElementById('res-record').hidden);
+    if (record) total += 40;
+    for (var k = 0; k < 6; k++) (function (k) {
+      plus_tard(k * 380, function () {
+        for (var i = 0; i < total / 6; i++) ajouter({ t: 'confetti', x: hasard(0, W), y: hasard(-40, -10), vx: hasard(-60, 60), vy: hasard(60, 160), g: 140, frein: 0.6, vie: hasard(2.6, 3.6), taille: hasard(6, 11), rot: hasard(0, 6.28), vrot: hasard(-8, 8), phase: hasard(0, 6.28), c: record && i % 3 === 0 ? C.jaune : Math.floor(hasard(0, EC.couleurs.length)) });
+      });
+    })(k);
+  }
+
+  // Effets continus : traînée sur le ballon, braises du Turbo, pulsation sur chaque boum
+  var derniereTrainee = 0;
+  function emissionsContinues(now) {
+    if (etatJeu !== 'jeu' && etatJeu !== 'echauffement' && etatJeu !== 'decompte') return;
+    if (EC.pulsationRythme) {
+      for (var i = 0; i < temps.length; i++) {
+        var b = temps[i];
+        if (!b.fait && b.t <= now + 8) {
+          b.fait = true;
+          if (now - b.t < 120) {
+            var c = centreDe(document.getElementById('beat'));
+            if (c) ajouter({ t: 'pulsation', x: c.x, y: c.y, vie: 0.32, taille: 150, c: bonus === 'turbo' ? C.orange : (bonus ? C.cyan : C.rose), fort: b.n % 4 === 0 });
+          }
+        }
+      }
+      temps = temps.filter(function (b) { return !b.fait || now - b.t < 500; });
+    }
+    if (now - derniereTrainee < (telephoneLent ? 70 : 40)) return;
+    derniereTrainee = now;
+    if (bonus || combo >= EC.traineeDesCombo) {
+      var p = pointBallonActuel();
+      if (p) {
+        if (bonus === 'turbo') lueur(p.x + hasard(-14, 14), p.y + hasard(-10, 10), Math.random() < 0.5 ? C.orange : C.jaune, { vy: hasard(-140, -80), vie: 0.5, taille: hasard(16, 26) });
+        else if (bonus) ajouter({ t: 'etoile', x: p.x + hasard(-16, 16), y: p.y + hasard(-16, 16), vx: hasard(-30, 30), vy: hasard(-60, -20), g: 0, frein: 1, vie: 0.55, taille: hasard(12, 18), rot: 0, vrot: 4, c: C.cyan });
+        else lueur(p.x + hasard(-10, 10), p.y + hasard(-10, 10), combo >= 20 ? C.rose : C.jaune, { vy: hasard(-40, 0), vie: 0.4, taille: hasard(10, 16) });
+      }
+    }
+    if (bonus === 'turbo' && Math.random() < 0.5) {               // braises qui montent des bords
+      var x = Math.random() < 0.5 ? hasard(0, W * 0.12) : hasard(W * 0.88, W);
+      lueur(x, H + 10, Math.random() < 0.5 ? C.orange : C.jaune, { vy: hasard(-260, -160), vx: hasard(-20, 20), vie: hasard(0.9, 1.4), taille: hasard(10, 20) });
+    }
+    if (accelereJusqua && Math.random() < 0.35) ajouter({ t: 'trait', x: -60, y: hasard(H * 0.2, H * 0.8), vx: hasard(1100, 1500), vy: 0, vie: 0.45, taille: hasard(1.5, 2.5), c: C.cyan });
+  }
+
+  /* =====================================================================
+     7. BOUCLE DE DESSIN
+     ===================================================================== */
+  var dansBoucle = false;
+  function reveiller() { if (!raf && !dansBoucle && !reduit() && window.requestAnimationFrame) raf = requestAnimationFrame(boucle); }
+  var precedent = 0;
+  function boucle(now) {
+    raf = 0;
+    if (reduit()) { particules = []; planifies = []; effacer(); return; }
+    dansBoucle = true;
+    try { etape(now); } finally { dansBoucle = false; }
+    var enJeu = etatJeu === 'jeu' || etatJeu === 'echauffement' || etatJeu === 'decompte';
+    if (!raf && (particules.length || planifies.length || (enJeu && DB.State.screen === 'game'))) raf = requestAnimationFrame(boucle);
+    else if (!raf) precedent = 0;
+  }
+  function etape(now) {
+    var t0 = performance.now();
+    var dt = precedent ? Math.min(0.05, (now - precedent) / 1000) : 1 / 60;
+    precedent = now;
+    if (!dimensionner()) { precedent = 0; particules = []; return; }
+    var nowP = maintenant();
+    var dus = planifies.filter(function (p) { return p.a <= nowP; });       // d’abord retirer, puis lancer :
+    planifies = planifies.filter(function (p) { return p.a > nowP; });    // un effet peut en programmer d’autres
+    dus.forEach(function (p) { try { p.fn(); } catch (e) { console.warn('[Dribble Beat] Effet ignoré.', e); } });
+    emissionsContinues(nowP);
+    var i, p;
+    for (i = particules.length - 1; i >= 0; i--) {
+      p = particules[i]; p.age += dt;
+      if (p.age >= p.vie) { particules.splice(i, 1); continue; }
+      if (p.frein) { var f = Math.max(0, 1 - p.frein * dt); p.vx *= f; p.vy *= f; }
+      if (p.g) p.vy += p.g * dt;
+      if (p.vx) p.x += p.vx * dt;
+      if (p.vy) p.y += p.vy * dt;
+      if (p.vrot) p.rot += p.vrot * dt;
+    }
+    if (particules.length || sale) dessiner();
+    var ms = performance.now() - t0;
+    mesures.images++; mesures.ms += ms; if (ms > mesures.pic) mesures.pic = ms;
+  }
+  function effacer() { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); sale = false; }
+  function dessiner() {
+    effacer();
+    if (!particules.length) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var i, p, k, a;
+    // 1) fonds : lignes de concentration, voile coloré (mélange normal)
+    ctx.globalCompositeOperation = 'source-over';
+    for (i = 0; i < particules.length; i++) {
+      p = particules[i]; k = p.age / p.vie;
+      if (p.t === 'rayons') dessinerRayons(p, k);
+      else if (p.t === 'voile') { ctx.globalAlpha = p.alpha * (1 - k); ctx.fillStyle = typeof p.c === 'string' ? p.c : couleur(p.c); ctx.fillRect(0, 0, W, H); }
+      else if (p.t === 'nuage') { a = 1 - k; ctx.globalAlpha = 0.7 * a; var s = p.taille * (1 + k); ctx.drawImage(NUAGE, p.x - s / 2, p.y - s / 2, s, s); }
+    }
+    // 2) lumières : étincelles, lueurs, étoiles, anneaux, traits (mélange additif = couleurs fluo)
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (i = 0; i < particules.length; i++) {
+      p = particules[i]; k = p.age / p.vie; a = 1 - k;
+      switch (p.t) {
+        case 'lueur': {
+          var t = p.taille * (1 - (1 - p.fin) * k);
+          ctx.globalAlpha = a; ctx.drawImage(LUEUR[p.c], p.x - t / 2, p.y - t / 2, t, t); break;
+        }
+        case 'etincelle': {
+          ctx.globalAlpha = a; ctx.strokeStyle = couleur(p.c); ctx.lineWidth = p.taille;
+          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.035, p.y - p.vy * 0.035); ctx.stroke();
+          ctx.drawImage(LUEUR[p.c], p.x - 7, p.y - 7, 14, 14); break;
+        }
+        case 'etoile': {
+          var e = p.taille * (k < 0.15 ? k / 0.15 : 1);
+          ctx.globalAlpha = a; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.drawImage(ETOILE[p.c], -e / 2, -e / 2, e, e); ctx.restore(); break;
+        }
+        case 'anneau': {
+          var r = p.r0 + (p.r1 - p.r0) * (1 - Math.pow(1 - k, 3));
+          ctx.globalAlpha = a; ctx.strokeStyle = couleur(p.c); ctx.lineWidth = Math.max(0.5, p.taille * a);
+          ctx.beginPath(); ctx.ellipse(p.x, p.y, r, r * 0.42, 0, 0, Math.PI * 2); ctx.stroke(); break;
+        }
+        case 'trait': {
+          ctx.globalAlpha = a * 0.8; ctx.strokeStyle = couleur(p.c); ctx.lineWidth = p.taille;
+          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.09, p.y - p.vy * 0.09); ctx.stroke(); break;
+        }
+        case 'pulsation': {
+          var tp = p.taille * (0.7 + 0.6 * k);
+          ctx.globalAlpha = (p.fort ? 0.55 : 0.38) * a; ctx.drawImage(LUEUR[p.c], p.x - tp / 2, p.y - tp / 2, tp, tp); break;
+        }
+      }
+    }
+    // 3) confettis (mélange normal, ils restent colorés sur fond clair)
+    ctx.globalCompositeOperation = 'source-over';
+    for (i = 0; i < particules.length; i++) {
+      p = particules[i];
+      if (p.t !== 'confetti') continue;
+      k = p.age / p.vie;
+      ctx.globalAlpha = k > 0.8 ? (1 - k) / 0.2 : 1;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(1, Math.cos(p.phase + p.age * 9));
+      ctx.fillStyle = couleur(p.c); ctx.fillRect(-p.taille / 2, -p.taille / 4, p.taille, p.taille / 2);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    sale = true;
+  }
+  // Lignes de concentration (集中線) : triangles fins tournés vers le centre, qui laissent un ovale libre
+  function dessinerRayons(p, k) {
+    var n = 56, cx = p.x, cy = p.y, R = Math.hypot(W, H), g = p.graine;
+    var a0 = k < 0.15 ? k / 0.15 : (1 - k) / 0.85;
+    ctx.globalAlpha = 0.75 * a0; ctx.fillStyle = typeof p.c === 'string' ? p.c : couleur(p.c);
+    ctx.beginPath();
+    for (var i = 0; i < n; i++) {
+      var h = Math.sin(g + i * 12.9898) * 43758.5453; h -= Math.floor(h);
+      var a = i / n * Math.PI * 2 + h * 0.08, l = 0.42 + 0.22 * h + 0.12 * k, e = 0.012 + 0.018 * h;
+      var rx = W * l * 0.62, ry = H * l * 0.62;
+      ctx.moveTo(cx + Math.cos(a - e) * R, cy + Math.sin(a - e) * R);
+      ctx.lineTo(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry);
+      ctx.lineTo(cx + Math.cos(a + e) * R, cy + Math.sin(a + e) * R);
+      ctx.closePath();
+    }
+    ctx.fill();
+  }
+
+  /* =====================================================================
+     8. BRANCHEMENTS
+     ===================================================================== */
+  function securise(fn) { return function (d) { try { fn(d); } catch (e) { console.warn('[Dribble Beat] Effet ignoré.', e); } }; }
+  bus.on('jeu:jugement', securise(surJugement));
+  bus.on('jeu:combo', securise(surCombo));
+  bus.on('jeu:bonus', securise(surBonus));
+  bus.on('jeu:etoile', securise(surEtoile));
+  bus.on('jeu:evenement', securise(surEvenement));
+  bus.on('jeu:fin', securise(function (d) { dernieresStats = d && d.stats; surFin(); }));
+  bus.on('jeu:etat', securise(function (d) {
+    etatJeu = d && d.etat || 'arret';
+    if (etatJeu === 'decompte' && !bonus) combo = 0;
+    if (etatJeu === 'arret') { bonus = null; combo = 0; accelereJusqua = 0; temps = []; }
+    if (etatJeu === 'pause' || etatJeu === 'pause-auto') temps = [];
+    reveiller();
+  }));
+  bus.on('audio:temps', function (b) {
+    if (!b || typeof b.t !== 'number' || !EC.pulsationRythme) return;
+    if (etatJeu === 'arret' || etatJeu === 'fin') return;
+    temps.push({ t: b.t, n: b.n, fait: false });
+    if (temps.length > 16) temps.shift();
+    reveiller();
+  });
+  bus.on('vision:image', function (img) { if (DB.State.screen === 'game') memoriser(img); });
+  bus.on('vision:perf', function (p) {
+    if (!p || typeof p.ips !== 'number') return;
+    lent = p.ips < 14 ? lent + 1 : 0;
+    if (lent >= 2 && !telephoneLent) { telephoneLent = true; dimensionner(); }
+  });
+  bus.on('ecran', securise(function (d) {
+    var nom = d && d.nom;
+    particules = []; planifies = []; effacer();
+    if (nom === 'game') { placerDans(ecranJeu, false); hist = []; reveiller(); }
+    else if (nom === 'results') { placerDans(ecranRes, true); bonus = null; combo = 0; plus_tard(250, pluieDeConfettis); }
+    else { etatJeu = 'arret'; bonus = null; combo = 0; temps = []; }
+  }));
+  bus.on('visibilite', function (d) { if (d && d.cachee) { particules = []; planifies = []; effacer(); } });
+
+  /* =====================================================================
+     9. ACCROCHE DE TEST (?test=1)
+     ===================================================================== */
+  try {
+    if (new URLSearchParams(location.search).get('test') === '1') {
+      window.__dribbleEffets = {
+        EC: EC, Horloge: Horloge, versEcran: versEcran, pointImpact: pointImpact, memoriser: memoriser,
+        crees: function () { return Object.assign({}, crees); },
+        etat: function () { return { particules: particules.length, planifies: planifies.length, max: maxParticules(), lent: telephoneLent, raf: !!raf, dpr: dpr, W: W, H: H, etatJeu: etatJeu, bonus: bonus, combo: combo, images: mesures.images, msMoyen: mesures.images ? mesures.ms / mesures.images : 0, msPic: mesures.pic, calque: cv.parentNode && cv.parentNode.dataset ? cv.parentNode.dataset.screen : null }; },
+        remiseAZero: function () { mesures = { images: 0, ms: 0, pic: 0 }; crees = {}; },
+        types: function () { var o = {}; particules.forEach(function (p) { o[p.t] = (o[p.t] || 0) + 1; }); return o; }
+      };
+    }
+  } catch (e) { /* ignoré */ }
+
+  DB.registerModule('effets');
+})();
+</script>
 </body>
 </html>
