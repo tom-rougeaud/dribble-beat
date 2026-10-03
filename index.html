@@ -1346,7 +1346,7 @@ button{cursor:pointer}
   "pose": { "confianceDetection": 0.5, "confiancePresence": 0.5, "confianceSuivi": 0.5, "msMaxGPU": 90 },
   "ballon": { "_note": "Ancien détecteur de ballon par IA (modèle efficientdet). Désactivé : la balle est suivie par le mouvement (suiviBalle).", "actif": false, "categories": ["sports ball"], "scoreMin": 0.2, "uneImageSur": 2, "uneImageSurMax": 5, "tailleMin": 0.025, "tailleMax": 0.4, "couperSousIps": 10, "couperApresFenetres": 3 },
   "suiviBalle": { "_note": "Suivi de N’IMPORTE QUELLE balle par le mouvement, dans la zone entre la taille et le sol. Diamètres en fraction de la hauteur du corps.", "actif": true, "hauteurAnalyse": 160, "largeurAnalyseMax": 240, "seuilMin": 30, "apprentissageFond": 0.06, "apprentissagePremierPlan": 0.008, "diametreMin": 0.03, "diametreMax": 0.28, "candidatsMax": 3 },
-  "placement": { "_note": "hauteurCorpsMinPx : taille minimale du corps (nez → chevilles) en pixels de la caméra ; hauteurCorpsMax : au-delà (fraction de l’image), l’enfant est trop près.", "visibiliteMin": 0.5, "visibiliteJambesMin": 0.6, "proportionJambesMin": 0.45, "imagesPourValider": 5, "imagesPourPerdre": 20, "ballonMemoireMs": 2500, "ballonAttenteMs": 10000, "hauteurCorpsMin": 0.13, "hauteurCorpsMinPx": 190, "hauteurCorpsMax": 0.92, "centreTolerance": 0.3, "lumiereMin": 40 },
+  "placement": { "_note": "hauteurCorpsMinPx : taille minimale du corps (nez → chevilles) en pixels de la caméra ; hauteurCorpsMax : au-delà (fraction de l’image), l’enfant est trop près. teteEntiere : le nez doit être au moins à cette fraction de la taille du corps sous le haut de l’image (sinon le haut de la tête est coupé). troncVersCorps : taille du corps estimée à partir du tronc, pour repérer un enfant trop près dont la tête sort de l’image.", "teteEntiere": 0.1, "troncVersCorps": 3.4, "visibiliteMin": 0.5, "visibiliteJambesMin": 0.6, "proportionJambesMin": 0.45, "imagesPourValider": 5, "imagesPourPerdre": 20, "ballonMemoireMs": 2500, "ballonAttenteMs": 10000, "hauteurCorpsMin": 0.13, "hauteurCorpsMinPx": 190, "hauteurCorpsMax": 0.92, "centreTolerance": 0.3, "lumiereMin": 40 },
   "calibrage": { "dureeMs": 1500, "mouvementMax": 0.06, "angleGenouDeboutMin": 150, "brasLevesMs": 700 },
   "delais": { "imageCameraMs": 12000, "moteurMs": 90000, "telechargementSilenceMs": 25000, "silenceImagesMs": 2500 },
   "affichage": { "squelette": true },
@@ -1475,7 +1475,7 @@ button{cursor:pointer}
     pose: { confianceDetection: 0.5, confiancePresence: 0.5, confianceSuivi: 0.5, msMaxGPU: 90 },
     ballon: { actif: false, categories: ['sports ball'], scoreMin: 0.2, uneImageSur: 2, uneImageSurMax: 5, tailleMin: 0.025, tailleMax: 0.4, couperSousIps: 10, couperApresFenetres: 3 },
     suiviBalle: { actif: true, hauteurAnalyse: 160, largeurAnalyseMax: 240, seuilMin: 30, apprentissageFond: 0.06, apprentissagePremierPlan: 0.008, diametreMin: 0.03, diametreMax: 0.28, candidatsMax: 3 },
-    placement: { visibiliteMin: 0.5, visibiliteJambesMin: 0.6, proportionJambesMin: 0.45, imagesPourValider: 5, imagesPourPerdre: 20, ballonMemoireMs: 2500, ballonAttenteMs: 10000, hauteurCorpsMin: 0.13, hauteurCorpsMinPx: 190, hauteurCorpsMax: 0.92, centreTolerance: 0.3, lumiereMin: 40 },
+    placement: { teteEntiere: 0.1, troncVersCorps: 3.4, visibiliteMin: 0.5, visibiliteJambesMin: 0.6, proportionJambesMin: 0.45, imagesPourValider: 5, imagesPourPerdre: 20, ballonMemoireMs: 2500, ballonAttenteMs: 10000, hauteurCorpsMin: 0.13, hauteurCorpsMinPx: 190, hauteurCorpsMax: 0.92, centreTolerance: 0.3, lumiereMin: 40 },
     calibrage: { dureeMs: 1500, mouvementMax: 0.06, angleGenouDeboutMin: 150, brasLevesMs: 700 },
     delais: { imageCameraMs: 12000, moteurMs: 90000, telechargementSilenceMs: 25000, silenceImagesMs: 2500 },
     affichage: { squelette: true },
@@ -2265,10 +2265,11 @@ button{cursor:pointer}
       var M = img.pose.monde, debout = true;
       if (M) debout = angle3(M[23], M[25], M[27]) >= VC.calibrage.angleGenouDeboutMin && angle3(M[24], M[26], M[28]) >= VC.calibrage.angleGenouDeboutMin;
       var maintenant = performance.now();
-      if (!debout || mvt > VC.calibrage.mouvementMax) {
-        // De loin, les repères tremblent un peu : on ne recommence que si le défaut DURE (4 images de suite)
-        instable = mvt > VC.calibrage.mouvementMax * 2 || !debout ? instable + 1 : instable;
-        if (instable >= 4) { calib.echantillons = []; calib.debut = 0; calib.progres = 0; instable = 0; }
+      // De loin, les repères « tremblent » même quand l’enfant ne bouge pas : un tremblement léger (jusqu’à 2 fois
+      // la limite) est accepté, la médiane des mesures l’efface. Au-delà (l’enfant marche, se penche) ou s’il
+      // n’est pas debout, on ne recommence que si le défaut DURE (4 images de suite) : jamais de blocage à 0 %.
+      if (!debout || mvt > VC.calibrage.mouvementMax * 2) {
+        if (++instable >= 4) { calib.echantillons = []; calib.debut = 0; calib.progres = 0; instable = 0; }
         return debout ? 'immobile' : 'droit';
       }
       instable = 0;
@@ -2317,18 +2318,24 @@ button{cursor:pointer}
       var ys = [27, 28, 29, 30].filter(function (i) { return P[i] && P[i].v >= 0.3 && P[i].y <= 1; }).map(function (i) { return P[i].y; });
       var px = ys.length ? (Math.max.apply(null, ys) - P[0].y) * img.h : 0;
       if (px < 0.6 * estime) px = estime;
-      return { px: px, fraction: px / img.h };
+      // Trop près, la tête sort souvent de l’image et la détection la « remet » plus bas (sur les épaules, une main) :
+      // le corps paraît alors plus petit qu’il n’est. Le tronc, lui, reste fiable : on prend la plus grande estimation.
+      var proche = Math.max(px, VC.placement.troncVersCorps * tronc);
+      return { px: px, fraction: px / img.h, proche: proche / img.h };
     }
     function seuilLoinPx(img) { return Math.max(VC.placement.hauteurCorpsMinPx, VC.placement.hauteurCorpsMin * img.h); }
     function choisirConseil(P, img, etapeCalib, brut) {
       if (!P) return performance.now() - sansPoseDepuis > 800 ? 'personne' : dernierConseil;
       if (lumiere < VC.placement.lumiereMin) return 'sombre';
-      if (!brut.tete) return 'tete';
-      // La distance d’abord (un enfant trop loin a souvent des pieds « incertains » : il ne faut pas lui dire de reculer)
+      // La distance d’abord : un enfant trop loin a souvent une tête et des pieds « incertains »,
+      // il ne faut surtout pas lui dire de reculer.
+      // Les consignes suivent les états LISSÉS (les pastilles), qui ignorent les à-coups de la détection :
+      // un enfant à la limite n’entend pas « approche-toi » puis « recule » en boucle, et « Ne bouge plus »
+      // n’apparaît que lorsque tout est vraiment bon. Pour la distance, on regarde de quelle limite il est le plus près.
       var tc = tailleCorps(P, img);
-      if (tc.px < seuilLoinPx(img)) return 'approche';
-      if (tc.fraction > VC.placement.hauteurCorpsMax) return 'pres';
-      if (!brut.pieds || !brut.genoux) return jambesFloues ? 'contraste' : 'pieds';
+      if (!etats.distance.ok) return (tc.px / seuilLoinPx(img)) * (tc.proche / VC.placement.hauteurCorpsMax) < 1 ? 'approche' : 'pres';
+      if (!etats.tete.ok) return 'tete';
+      if (!etats.pieds.ok || !etats.genoux.ok) return jambesFloues ? 'contraste' : 'pieds';
       var z = zoneVisible(img.w, img.h);
       var xEcran = 1 - milieu(P[23], P[24]).x;               // affichage en miroir
       var xRel = (xEcran - z.x0) / Math.max(0.01, z.x1 - z.x0); // 0 = bord gauche visible, 1 = bord droit
@@ -2377,8 +2384,10 @@ button{cursor:pointer}
       jambesFloues = piedsPlausibles && [25, 26, 27, 28].some(function (i) { return P[i].v >= 0.45 && P[i].v < vj; });
       // Pied : cheville, talon OU pointe du pied suffisamment sûrs (de loin, la cheville seule est souvent incertaine)
       function pied(a, b, c) { return P[a].v >= vj || (P[b] && P[b].v >= vj) || (P[c] && P[c].v >= vj); }
+      var tc = P ? tailleCorps(P, img) : null;
       var brut = {
-        tete: !!P && ok(P[0]) && (ok(P[7]) || ok(P[8])) && P[0].y > 0.02,
+        // tête entière : le nez assez bas sous le haut de l’image (sinon le haut de la tête est coupé)
+        tete: !!P && ok(P[0]) && (ok(P[7]) || ok(P[8])) && P[0].y > 0.02 && P[0].y >= VC.placement.teteEntiere * tc.fraction,
         genoux: genouxPlausibles && P[25].v >= vj && P[26].v >= vj,
         pieds: piedsPlausibles && pied(27, 29, 31) && pied(28, 30, 32)
       };
@@ -2387,9 +2396,8 @@ button{cursor:pointer}
       alimenter(etats.pieds, brut.pieds);
       alimenter(etats.ballon, maintenant - ballonVuA < VC.placement.ballonMemoireMs);
       // Bonne distance (ni trop loin, ni trop près), avec la même tolérance aux à-coups que les autres pastilles
-      var tc = P ? tailleCorps(P, img) : null;
-      alimenter(etats.distance, !!tc && tc.px >= seuilLoinPx(img) && tc.fraction <= VC.placement.hauteurCorpsMax);
-      if (DB.State.screen === 'setup') majJauge(tc && brut.tete ? tc.fraction : null, seuilLoinPx(img) / img.h, VC.placement.hauteurCorpsMax);
+      alimenter(etats.distance, !!tc && tc.px >= seuilLoinPx(img) && tc.proche <= VC.placement.hauteurCorpsMax);
+      if (DB.State.screen === 'setup') majJauge(tc && (brut.tete || tc.proche > VC.placement.hauteurCorpsMax) ? tc.proche : null, seuilLoinPx(img) / img.h, VC.placement.hauteurCorpsMax);
 
       var corpsOk = etats.tete.ok && etats.genoux.ok && etats.pieds.ok && etats.distance.ok;
       Dessin.cadre(corpsOk ? (calib.mesures ? 'pret' : 'ok') : null);
