@@ -2218,6 +2218,7 @@ button{cursor:pointer}
   var Placement = (function () {
     var IDX_MVT = [11, 12, 23, 24, 25, 26, 27, 28];
     var jambesFloues = false, candidat = '', candidatDepuis = 0;
+    var instable = 0;
     var etats, calib, ballonVuA, sansPoseDepuis, gesteDepuis, gesteBloqueJusqua, ballonAttenteDepuis, abandonBallon, dernierEnvoi, dernierConseil, dernierConseilA, lumiere, compteurLumiere, prec, mvt;
     var canvasLumiere = document.createElement('canvas');
     canvasLumiere.width = 24; canvasLumiere.height = 32;
@@ -2265,9 +2266,12 @@ button{cursor:pointer}
       if (M) debout = angle3(M[23], M[25], M[27]) >= VC.calibrage.angleGenouDeboutMin && angle3(M[24], M[26], M[28]) >= VC.calibrage.angleGenouDeboutMin;
       var maintenant = performance.now();
       if (!debout || mvt > VC.calibrage.mouvementMax) {
-        if (mvt > VC.calibrage.mouvementMax * 2 || !debout) { calib.echantillons = []; calib.debut = 0; calib.progres = 0; }
+        // De loin, les repères tremblent un peu : on ne recommence que si le défaut DURE (4 images de suite)
+        instable = mvt > VC.calibrage.mouvementMax * 2 || !debout ? instable + 1 : instable;
+        if (instable >= 4) { calib.echantillons = []; calib.debut = 0; calib.progres = 0; instable = 0; }
         return debout ? 'immobile' : 'droit';
       }
+      instable = 0;
       if (!calib.debut) calib.debut = maintenant;
       calib.echantillons.push({ P: P, M: M });
       calib.progres = Math.min(1, (maintenant - calib.debut) / VC.calibrage.dureeMs);
